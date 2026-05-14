@@ -121,6 +121,8 @@ class ChatSession:
             else:
                 console.print(f"[dim]Current model:[/] [green]{self.client.model}[/]")
                 console.print("[dim]Use /model <name> to change[/]")
+        elif command == "/models":
+            self._list_models()
         elif command == "/balance":
             self._check_balance()
         elif command == "/usage":
@@ -157,7 +159,14 @@ class ChatSession:
                 response = self._stream_and_collect()
             except SimplicityAPIError as e:
                 if e.is_auth_error:
-                    error_message(f"Authentication failed. Check your API key with: simplicity setup")
+                    error_message(
+                        f"Authentication failed (HTTP {e.status}).\n"
+                        f"  Your API key may lack permissions, have expired, or the model\n"
+                        f"  may require paid balance. Try:\n"
+                        f"  - /model openai (use a free model)\n"
+                        f"  - /balance (check your pollen)\n"
+                        f"  - simp auth (re-authenticate)"
+                    )
                 elif e.is_balance_error:
                     error_message(f"Insufficient pollen balance. Top up at enter.pollinations.ai")
                 else:

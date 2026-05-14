@@ -258,7 +258,9 @@ class SimplicityAPIError(Exception):
     def __init__(self, status: int, message: str):
         self.status = status
         self.message = message
-        super().__init__(f"API Error {status}: {message}")
+        # Keep it brief for terminal display
+        short = message[:200]
+        super().__init__(f"API Error {status}: {short}")
 
     @property
     def is_auth_error(self) -> bool:

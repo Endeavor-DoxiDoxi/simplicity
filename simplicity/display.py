@@ -230,6 +230,7 @@ def help_text():
   [cyan]/quit[/]      Exit chat
   [cyan]/clear[/]     Clear conversation history
   [cyan]/model[/]     Show/set current model
+  [cyan]/models[/]    List available models
   [cyan]/balance[/]   Check pollen balance
   [cyan]/usage[/]     View balance + usage history
   [cyan]/tools[/]     List available tools
