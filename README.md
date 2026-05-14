@@ -52,19 +52,27 @@ simplicity chat
 ### 🌸 Bring Your Own Pollen (Recommended!)
 
 ```bash
-simplicity auth
+simp auth
 ```
 
-This opens a browser-based login flow:
-1. CLI shows you a code and URL
-2. Open the URL, enter the code
-3. Sign in with GitHub
-4. Your API key is automatically saved
+One-click sign in:
+1. CLI opens your browser to Pollinations
+2. Sign in with GitHub and approve
+3. Your API key is automatically saved — done!
+
+**How it works:** Simplicity starts a local server, opens your browser to a
+GitHub Pages relay page that handles the OAuth redirect, then sends the API
+key back to your CLI. No copy-pasting. No manual steps.
+
+```bash
+# Fallback for headless systems (SSH, etc.)
+simp auth --device
+```
 
 **Why BYOP?**
 - 🔒 You control your own pollen balance
 - 💰 25% of your usage supports the Simplicity developer
-- ⚡ No copy-pasting keys needed
+- ⚡ One-click sign in, no key management
 - 🎯 Usage counts toward Pollinations tier upgrades
 
 ### Manual Key Entry

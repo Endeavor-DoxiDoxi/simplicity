@@ -94,17 +94,20 @@ def cmd_balance(args):
 
 
 def cmd_auth(args):
-    """BYOP device flow login — sign in with Pollinations."""
-    from simplicity.auth import byop_login, DeviceFlowError
+    """BYOP login — sign in with Pollinations (web redirect + device fallback)."""
+    from simplicity.auth import byop_login, DeviceFlowError, WebRedirectCancelled
     from simplicity.config import Config
 
     config = Config().load()
 
     try:
-        api_key = byop_login(rich_console=console)
+        api_key = byop_login(console=console, force_device=args.device)
         config.set("api_key", api_key)
-        success_message(f"API key saved! You're ready to go.")
-        console.print("[dim]Run [bold]simplicity chat[/] to start chatting.[/]")
+        success_message("API key saved! You're ready to go.")
+        console.print("[dim]Run [bold]simp chat[/] to start chatting.[/]")
+    except WebRedirectCancelled:
+        console.print("\n[dim]Login cancelled.[/]")
+        sys.exit(0)
     except DeviceFlowError as e:
         error_message(str(e))
         sys.exit(1)
@@ -181,7 +184,10 @@ def build_parser() -> argparse.ArgumentParser:
     balance_parser.set_defaults(func=cmd_balance)
 
     # auth
-    auth_parser = subparsers.add_parser("auth", help="Sign in with Pollinations (BYOP device flow)")
+    auth_parser = subparsers.add_parser("auth", help="Sign in with Pollinations (web redirect BYOP)")
+    auth_parser.add_argument(
+        "--device", action="store_true", help="Use device code flow instead of web redirect"
+    )
     auth_parser.set_defaults(func=cmd_auth)
 
     # tools

@@ -1,31 +1,185 @@
-"""Bring Your Own Pollen (BYOP) device flow authentication.
+"""Bring Your Own Pollen (BYOP) authentication for Simplicity.
 
-Lets users sign in with their Pollinations account through a browser,
-so they bring their own pollen and the app developer earns royalties.
+Two flows:
+  1. Web redirect (primary): Opens browser → GitHub Pages relay →
+     Pollinations OAuth → API key sent back to local server.
+  2. Device flow (fallback): Manual code entry for headless systems.
 
-Flow:
-  1. Request a device code from Pollinations
-  2. User opens browser, enters code at enter.pollinations.ai/device
-  3. CLI polls for the access token
-  4. Token is saved and used for all API calls
+Flow 1 (Web Redirect):
+  1. CLI starts temporary local HTTP server
+  2. Opens browser to GitHub Pages auth.html with port + state params
+  3. auth.html stores params → redirects to Pollinations authorize
+  4. User approves → Pollinations redirects to auth.html#api_key=...
+  5. auth.html POSTs key to localhost:{port}
+  6. CLI receives key, stops server, saves config
 """
 
 import json
+import os
+import random
+import string
+import sys
 import time
 import urllib.request
 import urllib.error
+import webbrowser
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Optional
 
 
-# Doxi's publishable app key — safe for client-side code
-# Developer earnings enabled: 25% markup → credits to Doxi's balance
-APP_KEY = "pk_GVZMVD9V84NNXCWd"
+# ── Constants ────────────────────────────────────────────────────
 
+APP_KEY = "pk_GVZMVD9V84NNXCWd"
+AUTH_RELAY = "https://endeavor-doxidoxi.github.io/auth.html"
+AUTHORIZE_URL = "https://enter.pollinations.ai/authorize"
+
+# Device flow (fallback)
 DEVICE_CODE_URL = "https://enter.pollinations.ai/api/device/code"
 DEVICE_TOKEN_URL = "https://enter.pollinations.ai/api/device/token"
-AUTH_PAGE = "https://enter.pollinations.ai/device"
-POLL_INTERVAL = 5  # seconds
 
+# Local server
+SERVER_TIMEOUT = 120  # seconds
+
+
+# ── Helpers ──────────────────────────────────────────────────────
+
+def _generate_state(length: int = 32) -> str:
+    """Generate a random CSRF state token."""
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
+
+
+def _find_free_port() -> int:
+    """Find a free TCP port."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+
+
+def _open_browser(url: str, console) -> bool:
+    """Try to open a URL in the browser. Returns True if successful."""
+    try:
+        webbrowser.open(url)
+        return True
+    except Exception:
+        console.print(f"[dim]Could not open browser. Open this URL manually:[/]")
+        console.print(f"[cyan]{url}[/]")
+        return False
+
+
+# ── Local callback server ────────────────────────────────────────
+
+class _CallbackHandler(BaseHTTPRequestHandler):
+    """Handles the single POST from auth.html with the API key."""
+
+    def do_POST(self):
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length)
+
+        # CORS headers (auth.html is on a different origin)
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+
+        try:
+            data = json.loads(body)
+            api_key = data.get('api_key', '')
+            if api_key:
+                self.server.api_key = api_key
+                self.wfile.write(json.dumps({'status': 'ok'}).encode())
+            else:
+                self.wfile.write(json.dumps({'status': 'error', 'message': 'no api_key'}).encode())
+        except Exception as e:
+            self.wfile.write(json.dumps({'status': 'error', 'message': str(e)}).encode())
+        finally:
+            # Shutdown after handling this request
+            self.server.running = False
+
+    def do_OPTIONS(self):
+        """Handle CORS preflight."""
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        """Suppress default logging."""
+        pass
+
+
+def _run_callback_server(port: int, timeout: int) -> Optional[str]:
+    """Run a temporary HTTP server to receive the API key callback.
+
+    Returns the API key or None on timeout/failure.
+    """
+    server = HTTPServer(('127.0.0.1', port), _CallbackHandler)
+    server.api_key = None
+    server.running = True
+    server.timeout = 1  # poll every second
+
+    deadline = time.monotonic() + timeout
+    while server.running and time.monotonic() < deadline:
+        server.handle_request()
+
+    server.server_close()
+    return server.api_key
+
+
+# ── Web redirect flow (primary) ──────────────────────────────────
+
+def web_redirect_login(console) -> str:
+    """Run the web redirect BYOP login flow.
+
+    Starts a local server, opens browser to GitHub Pages auth relay,
+    waits for the callback with the API key.
+
+    Returns the user's API key (sk_...).
+    """
+    port = _find_free_port()
+    state = _generate_state()
+
+    # Build the auth relay URL
+    relay_params = f"port={port}&state={state}&app_key={APP_KEY}"
+    relay_url = f"{AUTH_RELAY}?{relay_params}"
+
+    # Show instructions
+    console.print()
+    console.print("[bold cyan]🔐 Simplicity × Pollinations[/]")
+    console.print("[dim]Bring Your Own Pollen — 25% supports the developer[/]")
+    console.print()
+    console.print(f"  [dim]Local server:[/] [green]localhost:{port}[/]")
+    console.print(
+        f"  [dim]Opening browser to sign in with Pollinations...[/]"
+    )
+
+    _open_browser(relay_url, console)
+
+    console.print()
+    console.print("[dim]Waiting for authentication...[/]", end="\r")
+
+    try:
+        api_key = _run_callback_server(port, SERVER_TIMEOUT)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Cancelled.[/]")
+        raise WebRedirectCancelled()
+
+    if not api_key:
+        console.print("\n[yellow]⚠️  Authentication timed out.[/]")
+        raise DeviceFlowError(
+            "No response received. Please try again or use a device flow."
+        )
+
+    console.print("[green]✅ Connected! Pollinations account linked.[/]")
+    console.print(
+        "[dim]🌸 You bring the pollen — [green]25% supports the developer[/] ✨[/]\n"
+    )
+
+    return api_key
+
+
+# ── Device flow (fallback) ───────────────────────────────────────
 
 def _post_json(url: str, data: dict) -> dict:
     """Make a JSON POST request."""
@@ -43,148 +197,107 @@ def _post_json(url: str, data: dict) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def request_device_code() -> Optional[dict]:
-    """Request a device code from Pollinations.
+def device_login(console) -> str:
+    """Run the device code BYOP login flow (fallback for headless systems).
 
-    Returns dict with device_code, user_code, verification_uri
-    or None on failure.
+    Returns the user's API key (sk_...).
     """
+    console.print("\n[bold cyan]🔐 Simplicity × Pollinations (Device Flow)[/]")
+    console.print("[dim]Bring Your Own Pollen — you pay, we both win[/]\n")
+
+    # Step 1: Request device code
     try:
-        result = _post_json(DEVICE_CODE_URL, {
+        device = _post_json(DEVICE_CODE_URL, {
             "client_id": APP_KEY,
             "scope": "generate",
         })
-        return result
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        try:
-            data = json.loads(body)
-            msg = data.get("error_description") or data.get("error") or body
-        except json.JSONDecodeError:
-            msg = body[:500]
-        raise DeviceFlowError(f"Failed to request device code: {msg}")
     except Exception as e:
-        raise DeviceFlowError(f"Network error: {e}")
+        raise DeviceFlowError(f"Failed to request device code: {e}")
 
+    user_code = device.get("user_code", "????")
+    device_code = device.get("device_code", "")
+    auth_url = device.get(
+        "verification_uri_complete",
+        f"https://enter.pollinations.ai/device?user_code={user_code}",
+    )
 
-def poll_for_token(device_code: str, timeout_seconds: int = 120) -> Optional[str]:
-    """Poll for the access token until the user approves or timeout.
+    if not device_code:
+        raise DeviceFlowError("No device code in response")
 
-    Returns the access_token (sk_...) or None on timeout.
-    """
-    deadline = time.monotonic() + timeout_seconds
+    console.print(f"  [bold]1.[/] Open: [link={auth_url}]{auth_url}[/link]")
+    console.print(f"  [bold]2.[/] Code: [bold green]{user_code}[/]")
+    console.print("  [bold]3.[/] Sign in with GitHub and approve")
+    console.print()
+
+    # Step 2: Poll for token
+    console.print("[dim]Waiting for approval...[/]", end="\r")
+    deadline = time.monotonic() + 180
 
     while time.monotonic() < deadline:
         try:
-            result = _post_json(DEVICE_TOKEN_URL, {
-                "device_code": device_code,
-            })
-
+            result = _post_json(DEVICE_TOKEN_URL, {"device_code": device_code})
             if "access_token" in result:
-                return result["access_token"]
-
+                token = result["access_token"]
+                console.print("[green]✅ Connected! Pollinations account linked.[/]")
+                console.print(
+                    "[dim]🌸 You bring the pollen — [green]25% supports the developer[/] ✨[/]\n"
+                )
+                return token
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             try:
-                data = json.loads(body)
-                err = data.get("error", "")
+                err = json.loads(body).get("error", "")
             except json.JSONDecodeError:
                 err = ""
-
-            if err == "authorization_pending":
-                # User hasn't approved yet — keep polling
-                time.sleep(POLL_INTERVAL)
-                continue
-            elif err == "slow_down":
-                # Polling too fast
-                time.sleep(POLL_INTERVAL + 2)
+            if err in ("authorization_pending", "slow_down"):
+                time.sleep(5)
                 continue
             elif err == "expired_token":
                 raise DeviceFlowError("Device code expired. Please try again.")
             else:
                 raise DeviceFlowError(f"Token request failed: {err or body[:200]}")
+        time.sleep(5)
 
-        time.sleep(POLL_INTERVAL)
-
-    return None  # Timeout
+    raise DeviceFlowError("Login timed out")
 
 
-def byop_login(rich_console=None, rich_progress=None) -> str:
-    """Run the full BYOP device flow login.
+# ── Unified login entry point ────────────────────────────────────
 
-    Shows instructions to the user, polls for approval,
-    and returns the API key.
+def byop_login(console=None, force_device: bool = False) -> str:
+    """Run the BYOP login flow. Tries web redirect first, falls back to device flow.
 
     Args:
-        rich_console: Optional Rich Console for pretty output
-        rich_progress: Optional Rich Progress for spinner
+        console: Rich Console for output
+        force_device: Skip web redirect, use device flow directly
 
     Returns:
         The user's API key (sk_...)
     """
-    if rich_console is None:
-        import sys
+    if console is None:
         class FallbackConsole:
             def print(self, *a, **kw): print(*a)
-        rich_console = FallbackConsole()
+        console = FallbackConsole()
 
-    # Step 1: Request device code
-    rich_console.print("\n[bold cyan]🔐 Simplicity × Pollinations[/]")
-    rich_console.print("[dim]Bring Your Own Pollen — you pay, we both win[/]\n")
+    # Try web redirect flow first (unless forced device or no browser available)
+    if not force_device:
+        try:
+            return web_redirect_login(console)
+        except WebRedirectCancelled:
+            raise
+        except Exception as e:
+            console.print(f"\n[yellow]⚠️  Web redirect failed: {e}[/]")
+            console.print("[dim]Falling back to device flow...[/]")
 
-    try:
-        device = request_device_code()
-    except DeviceFlowError as e:
-        rich_console.print(f"[red]❌ {e}[/]")
-        raise
+    return device_login(console)
 
-    user_code = device.get("user_code", "????")
-    device_code = device.get("device_code", "")
-    
-    # Use the pre-filled URL if available, otherwise build it
-    auth_url = device.get(
-        "verification_uri_complete",
-        f"https://enter.pollinations.ai/device?user_code={user_code}"
-    )
 
-    if not device_code:
-        rich_console.print("[red]❌ No device code received[/]")
-        raise DeviceFlowError("No device code in response")
-
-    # Step 2: Show instructions
-    rich_console.print()
-    rich_console.print(
-        f"  [bold]1.[/] Open: [link={auth_url}]{auth_url}[/link]"
-    )
-    rich_console.print(
-        f"  [bold]2.[/] Code: [bold green]{user_code}[/] (pre-filled if you use the link above)"
-    )
-    rich_console.print(
-        "  [bold]3.[/] Sign in with GitHub and approve"
-    )
-    rich_console.print()
-
-    # Step 3: Poll for token
-    rich_console.print("[dim]Waiting for approval...[/]", end="\r")
-
-    try:
-        token = poll_for_token(device_code, timeout_seconds=180)
-    except DeviceFlowError as e:
-        rich_console.print(f"\n[red]❌ {e}[/]")
-        raise
-
-    if not token:
-        rich_console.print("\n[red]❌ Login timed out. Please try again.[/]")
-        raise DeviceFlowError("Login timed out")
-
-    rich_console.print("[green]✅ Connected! Pollinations account linked.[/]")
-    rich_console.print(
-        "[dim]🌸 You bring the pollen — [green]25% supports the developer[/] ✨[/]\n"
-    )
-
-    return token
-
+# ── Exceptions ───────────────────────────────────────────────────
 
 class DeviceFlowError(Exception):
-    """Raised when the device flow fails."""
+    """Raised when the device/auth flow fails."""
+    pass
+
+
+class WebRedirectCancelled(Exception):
+    """Raised when the user cancels the web redirect flow."""
     pass
