@@ -153,6 +153,13 @@ def web_redirect_login(console) -> str:
     console.print(
         f"  [dim]Opening browser to sign in with Pollinations...[/]"
     )
+    console.print()
+    console.print(
+        "[dim]If the browser says 'URL not authorized', the app key needs a redirect[/]"
+    )
+    console.print(
+        "[dim]URI added. You may need to configure it at enter.pollinations.ai[/]"
+    )
 
     _open_browser(relay_url, console)
 
@@ -166,9 +173,17 @@ def web_redirect_login(console) -> str:
         raise WebRedirectCancelled()
 
     if not api_key:
-        console.print("\n[yellow]⚠️  Authentication timed out.[/]")
+        console.print("\n[yellow]⚠️  No response received.[/]")
+        console.print(
+            "[dim]If the browser showed an error, the app key may need\n"
+            "a redirect URI configured. Try:\n"
+            "  1. Go to https://enter.pollinations.ai\n"
+            "  2. Edit app key 'pk_GVZM...'\n"
+            "  3. Add redirect URI: https://endeavor-doxidoxi.github.io/auth.html\n"
+            "Or fall back to device flow: simp auth --device[/]"
+        )
         raise DeviceFlowError(
-            "No response received. Please try again or use a device flow."
+            "No response received. Check browser for errors or use --device fallback."
         )
 
     console.print("[green]✅ Connected! Pollinations account linked.[/]")
