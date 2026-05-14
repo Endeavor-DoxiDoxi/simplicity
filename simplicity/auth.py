@@ -1,8 +1,7 @@
 """Bring Your Own Pollen (BYOP) authentication for Simplicity.
 
-The local server acts as the OAuth redirect endpoint — the API key
-is scoped to localhost, which is exactly where the CLI runs.
-No external relay needed.
+Uses the GitHub Pages auth.html relay page as the OAuth redirect endpoint.
+A local server receives the API key callback.
 """
 
 import json
@@ -21,10 +20,12 @@ from typing import Optional
 
 
 APP_KEY = "pk_GVZMVD9V84NNXCWd"
+AUTH_RELAY = "https://endeavor-doxidoxi.github.io/auth.html"
 AUTHORIZE_URL = "https://enter.pollinations.ai/authorize"
 DEVICE_CODE_URL = "https://enter.pollinations.ai/api/device/code"
 DEVICE_TOKEN_URL = "https://enter.pollinations.ai/api/device/token"
 AUTH_LOG = Path.home() / ".simplicity" / "auth.log"
+DEFAULT_PORT = 19876
 
 
 # ── Auth logging ─────────────────────────────────────────────────
@@ -56,13 +57,8 @@ def _generate_state(length: int = 32) -> str:
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
-DEFAULT_AUTH_PORT = 19876
-
-
-def _find_free_port(preferred: int = DEFAULT_AUTH_PORT) -> int:
-    """Try preferred port, then adjacent ports. Never random — must match redirect URI."""
+def _find_free_port(preferred: int = DEFAULT_PORT) -> int:
     import socket
-    # Try preferred first, then next 10 ports
     for offset in range(11):
         p = preferred + offset
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -83,115 +79,52 @@ def _open_browser(url: str, console) -> bool:
         return False
 
 
-# ── Local auth server ────────────────────────────────────────────
+# ── Callback server ──────────────────────────────────────────────
 
-AUTH_PAGE = """<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Simplicity Auth</title>
-<style>
-body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:2.5rem 2rem;max-width:420px;text-align:center}
-.logo{font-size:2.5rem}h1{color:#f781c0;font-size:1.2rem}.muted{color:#8b949e;font-size:.85rem;margin:1rem 0}
-.spinner{width:20px;height:20px;border:2px solid #30363d;border-top-color:#f781c0;border-radius:50%;animation:spin .8s linear infinite;margin:1rem auto}
-@keyframes spin{to{transform:rotate(360deg)}}
-</style></head>
-<body><div class="card">
-<div class="logo">🌸</div>
-<h1 id="status">Completing authentication...</h1>
-<div class="spinner"></div>
-<div class="muted" id="detail"></div>
-</div>
-<script>
-(function(){
-var f=window.location.hash.substring(1);
-var p=new URLSearchParams(f);
-var key=p.get('api_key');
-var err=p.get('error');
-var st=document.getElementById('status');
-var dt=document.getElementById('detail');
-
-if(key){
-  st.textContent='✅ Connected!';
-  dt.textContent='Sending key to Simplicity...';
-  fetch('/callback',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({api_key:key})
-  }).then(function(r){
-    if(r.ok){st.textContent='✅ Done! You can close this tab.';dt.textContent='';}
-    else{st.textContent='❌ Failed';dt.textContent='Server error: '+r.status;}
-  }).catch(function(e){
-    st.textContent='❌ Failed';dt.textContent='Could not reach Simplicity. Is it still running?';
-  });
-}else if(err){
-  st.textContent='❌ Denied';
-  dt.textContent='Authentication was denied or failed. ('+err+')';
-}else{
-  st.textContent='No API key received';
-  dt.textContent='Something went wrong with the redirect.';
-}
-})();
-</script></body></html>"""
-
-
-class _AuthHandler(BaseHTTPRequestHandler):
-    """Handles the OAuth redirect and key extraction."""
-
-    def do_GET(self):
-        """Serve the auth landing page (receives the redirect with API key in fragment)."""
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(AUTH_PAGE.encode())
-
+class _CallbackHandler(BaseHTTPRequestHandler):
     def do_POST(self):
-        """Receive the API key extracted by the JavaScript on the page."""
-        if self.path == "/callback":
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length)
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            try:
-                data = json.loads(body)
-                key = data.get("api_key", "")
-                if key:
-                    self.server.api_key = key
-                    self.wfile.write(b'{"status":"ok"}')
-                    self.server.running = False
-                else:
-                    self.wfile.write(b'{"status":"error","message":"no key"}')
-            except Exception as e:
-                self.wfile.write(json.dumps({"status":"error","message":str(e)}).encode())
-        else:
-            self.send_error(404)
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        try:
+            data = json.loads(body)
+            key = data.get("api_key", "")
+            if key:
+                self.server.api_key = key
+                self.wfile.write(b'{"status":"ok"}')
+                self.server.running = False
+            else:
+                self.wfile.write(b'{"status":"error","message":"no key"}')
+        except Exception as e:
+            self.wfile.write(json.dumps({"status":"error","message":str(e)}).encode())
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def log_message(self, format, *args):
         pass
 
 
-def _run_auth_server(port: int, timeout: int, state: str) -> Optional[str]:
-    """Run local server that acts as OAuth redirect endpoint.
-    
-    1. Opens browser to Pollinations authorize with redirect_uri=localhost:PORT
-    2. Serves auth landing page that extracts API key from URL fragment
-    3. Receives the key via POST callback
-    """
-    server = HTTPServer(("127.0.0.1", port), _AuthHandler)
+def _run_callback_server(port: int, timeout: int) -> Optional[str]:
+    server = HTTPServer(("127.0.0.1", port), _CallbackHandler)
     server.api_key = None
     server.running = True
     server.timeout = 1
-
     deadline = time.monotonic() + timeout
     while server.running and time.monotonic() < deadline:
         server.handle_request()
-
     server.server_close()
     return server.api_key
 
 
-# ── Auth check (ping — nova-fast ONLY) ───────────────────────────
+# ── Auth check — nova-fast ONLY ──────────────────────────────────
 
 def check_api_key(api_key: str, model: str = "nova-fast") -> dict:
     data = json.dumps({
@@ -225,7 +158,6 @@ def check_api_key(api_key: str, model: str = "nova-fast") -> dict:
 
 
 def run_auth_check(console, api_key: str, model: str = "nova-fast"):
-    """Verify the key works with nova-fast ONLY. Never touches paid models."""
     console.print(f"\n[dim]Verifying key...[/]", end=" ")
     result = check_api_key(api_key, model)
     _auth_log(f"auth_check: ok={result['ok']} status={result['status']} msg={result['message'][:80]}")
@@ -239,53 +171,36 @@ def run_auth_check(console, api_key: str, model: str = "nova-fast"):
 
 # ── Web redirect flow ────────────────────────────────────────────
 
-def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
+def web_redirect_login(console, port: int = DEFAULT_PORT) -> str:
     port = _find_free_port(port)
     state = _generate_state()
 
-    if port != DEFAULT_AUTH_PORT:
-        console.print(
-            f"[yellow]⚠️  Port {DEFAULT_AUTH_PORT} is in use. Using port {port} instead.[/]\n"
-            f"[yellow]   If this is your own app key, register this redirect URI:\n"
-            f"[yellow]   http://localhost:{port}[/]"
-        )
+    _auth_log(f"web_redirect: port={port}")
 
-    # redirect_uri = localhost — key gets scoped to where the CLI actually runs
-    redirect_uri = f"http://localhost:{port}"
-    auth_url = (
-        f"{AUTHORIZE_URL}?"
-        f"redirect_uri={urllib.parse.quote(redirect_uri)}"
-        f"&client_id={APP_KEY}"
-        f"&scope=generate"
-        f"&budget=5"
-        f"&expiry=365"
-        f"&state={state}"
-    )
-
-    _auth_log(f"web_redirect: port={port} redirect_uri={redirect_uri}")
+    # Build relay URL with local server info
+    relay_url = f"{AUTH_RELAY}?port={port}&state={state}&app_key={APP_KEY}"
 
     console.print()
     console.print("[bold cyan]🔐 Simplicity × Pollinations[/]")
     console.print("[dim]Bring Your Own Pollen — 25% supports the developer[/]")
     console.print()
-    console.print(f"  [dim]Redirect URI:[/] [green]{redirect_uri}[/]")
-    console.print()
-    console.print(
-        "[dim]⚠️  FIRST: Register this redirect URI on your app key![/]\n"
-        "  1. Go to https://enter.pollinations.ai\n"
-        "  2. Edit app key\n"
-        f"  3. Add: {redirect_uri}\n"
-        "  4. Save, then the auth will work\n"
-    )
-    console.print()
+
+    # Only warn if using a non-default port (custom setup)
+    if port != DEFAULT_PORT:
+        console.print(
+            f"[yellow]⚠️  Using non-default port {port}.[/]\n"
+            f"[yellow]   If you're using your own app key, register this redirect URI:\n"
+            f"[yellow]   http://localhost:{port}[/]\n"
+        )
+
     console.print(f"  [dim]Opening browser to sign in...[/]")
 
-    _open_browser(auth_url, console)
+    _open_browser(relay_url, console)
 
     console.print(f"\n[dim]Waiting for authentication...[/]", end="\r")
 
     try:
-        api_key = _run_auth_server(port, 120, state)
+        api_key = _run_callback_server(port, 120)
     except KeyboardInterrupt:
         console.print("\n[dim]Cancelled.[/]")
         _auth_log("web_redirect: cancelled")
@@ -365,7 +280,7 @@ def device_login(console) -> str:
 
 # ── Unified entry ─────────────────────────────────────────────────
 
-def byop_login(console=None, force_device: bool = False, skip_check: bool = False, port: int = DEFAULT_AUTH_PORT) -> str:
+def byop_login(console=None, force_device: bool = False, skip_check: bool = False, port: int = DEFAULT_PORT) -> str:
     if console is None:
         class FB:
             def print(self, *a, **kw): print(*a)
