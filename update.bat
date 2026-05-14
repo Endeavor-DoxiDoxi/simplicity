@@ -61,4 +61,7 @@ echo.
 echo   Your config and tools are untouched.
 echo   Run: simp chat
 echo.
+echo   TIP: If 'simp update' doesn't work, just run this
+echo   update.bat directly — it does the same thing.
+echo.
 pause
