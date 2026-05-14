@@ -34,6 +34,11 @@ if %errorlevel%==0 (
 set /p ENV_CHOICE="Choice [%DEFAULT_ENV%]: "
 if "%ENV_CHOICE%"=="" set ENV_CHOICE=%DEFAULT_ENV%
 
+REM ── Discord support ───────────────────────────
+echo.
+set /p DISCORD_CHOICE="Install Discord bot support? (discord.py) [y/N]: "
+if /i "%DISCORD_CHOICE%"=="y" set INSTALL_DISCORD=1
+
 REM ── Python check ──────────────────────────────
 if "%ENV_CHOICE%"=="1" (
     set "PYTHON="
@@ -65,7 +70,6 @@ if "%ENV_CHOICE%"=="2" (
 )
 
 REM ── Create wrappers ───────────────────────────
-REM Always create simp.bat (guaranteed no conflict)
 (
     echo @echo off
     echo REM Simplicity wrapper
@@ -79,12 +83,9 @@ REM Always create simp.bat (guaranteed no conflict)
 ) > "%SIMPLICITY_DIR%\simp.bat"
 echo [OK] Wrapper: simp.bat
 
-REM Also create simplicity.bat if name isn't taken by the package dir
+REM Also simplicity.bat if name isn't taken
 if not exist "%SIMPLICITY_DIR%\simplicity\" (
     copy "%SIMPLICITY_DIR%\simp.bat" "%SIMPLICITY_DIR%\simplicity.bat" >nul 2>&1
-    echo [OK] Wrapper: simplicity.bat
-) else (
-    echo [OK] Use 'simp' (package dir blocks 'simplicity' name)
 )
 
 REM ── Create config directories ─────────────────
@@ -108,11 +109,10 @@ echo   . . . . . . . . . . . . . . . . . . . . . . . .
 echo.
 echo   ^>^> YOU ARE IN: %SIMPLICITY_DIR%
 echo.
-echo   Run Simplicity from THIS folder:
+echo   Run from THIS folder:
 echo     simp chat
 echo.
-echo   (simp.bat was created right here - dir shows it)
-echo   (or fallback: .venv\Scripts\simplicity chat)
+echo   (or: .venv\Scripts\simplicity chat)
 echo.
 echo   First-time setup:
 echo     simp auth
@@ -141,13 +141,17 @@ echo ... Installing Simplicity...
 if errorlevel 1 (
     echo.
     echo ERROR: pip install failed.
-    echo This can happen if Python path has spaces or permission issues.
-    echo.
-    echo Try running this terminal AS ADMINISTRATOR and try again.
+    echo Try running this terminal AS ADMINISTRATOR.
     pause
     exit /b 1
 )
-echo [OK] Simplicity installed (editable mode)
+echo [OK] Simplicity installed
+
+if "%INSTALL_DISCORD%"=="1" (
+    echo ... Installing discord.py...
+    "%SIMPLICITY_DIR%\.venv\Scripts\pip" install discord.py --quiet
+    echo [OK] Discord support installed
+)
 goto :eof
 
 :setup_conda
@@ -178,5 +182,11 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo [OK] Simplicity installed (editable mode)
+echo [OK] Simplicity installed
+
+if "%INSTALL_DISCORD%"=="1" (
+    echo ... Installing discord.py...
+    conda run -n simplicity pip install discord.py --quiet
+    echo [OK] Discord support installed
+)
 goto :eof

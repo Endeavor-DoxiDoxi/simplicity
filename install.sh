@@ -32,6 +32,11 @@ fi
 read -p "Choice [$DEFAULT_ENV]: " env_choice
 env_choice=${env_choice:-$DEFAULT_ENV}
 
+# ── Discord support ───────────────────────────
+echo ""
+read -p "Install Discord bot support? (discord.py) [y/N]: " discord_choice
+discord_choice=${discord_choice:-n}
+
 # ── Pick wrapper name ─────────────────────────
 echo ""
 echo "Pick a command name:"
@@ -78,6 +83,11 @@ setup_venv() {
     echo "... Installing Simplicity..."
     "$VENV_DIR/bin/pip" install -e "$SIMPLICITY_DIR" --quiet
     echo "[OK] Simplicity installed"
+    if [ "$discord_choice" = "y" ] || [ "$discord_choice" = "Y" ]; then
+        echo "... Installing discord.py..."
+        "$VENV_DIR/bin/pip" install discord.py --quiet
+        echo "[OK] Discord support installed"
+    fi
 }
 
 # ── Setup: conda ──────────────────────────────
@@ -98,6 +108,11 @@ setup_conda() {
     echo "... Installing Simplicity..."
     conda run -n "$ENV_NAME" pip install -e "$SIMPLICITY_DIR" --quiet
     echo "[OK] Simplicity installed"
+    if [ "$discord_choice" = "y" ] || [ "$discord_choice" = "Y" ]; then
+        echo "... Installing discord.py..."
+        conda run -n "$ENV_NAME" pip install discord.py --quiet
+        echo "[OK] Discord support installed"
+    fi
 }
 
 # ── Run setup ─────────────────────────────────

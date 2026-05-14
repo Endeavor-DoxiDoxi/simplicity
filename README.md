@@ -225,11 +225,17 @@ Any OpenAI-compatible endpoint works — just set the base URL.
 
 ## Discord Bot
 
-```bash
-# Install Discord support
-pip install simplicity[discord]
+During install, choose "Install Discord bot support? [y/N]" and
+the installer will add `discord.py` automatically.
 
-# Run with a bot token
+Or install manually:
+```bash
+.venv/bin/pip install discord.py     # Linux/macOS
+.venv\Scripts\pip install discord.py  # Windows
+```
+
+Run with a bot token:
+```bash
 simp discord -t YOUR_BOT_TOKEN
 # or: DISCORD_TOKEN=... simp discord
 ```

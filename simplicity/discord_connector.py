@@ -279,8 +279,7 @@ def run_discord(token: str):
         print("Install it with:")
         print("  pip install discord.py")
         print()
-        print("Or with the optional dependency:")
-        print("  pip install simplicity[discord]")
+        print("Or re-run the Simplicity installer and choose Discord support.")
         sys.exit(1)
 
     from simplicity.config import Config
