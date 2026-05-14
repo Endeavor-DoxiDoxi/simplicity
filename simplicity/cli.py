@@ -323,7 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     auth_parser.add_argument(
         "-p", "--port", type=int, default=19876,
-        help="Port for OAuth redirect (default: 19876, must match app key redirect URI)"
+        help="OAuth redirect port (only change if using your own app key)"
     )
     auth_parser.set_defaults(func=cmd_auth)
 
