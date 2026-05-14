@@ -123,6 +123,8 @@ class ChatSession:
                 console.print("[dim]Use /model <name> to change[/]")
         elif command == "/balance":
             self._check_balance()
+        elif command == "/usage":
+            self._check_usage(arg)
         elif command == "/tools":
             self._list_tools()
         elif command == "/save":
@@ -271,20 +273,39 @@ class ChatSession:
     def _check_balance(self):
         """Check pollen balance."""
         try:
-            import urllib.request
-            import json as _json
-
-            req = urllib.request.Request(
-                "https://gen.pollinations.ai/account/balance",
-                headers={"Authorization": f"Bearer {self.config.api_key}"},
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                data = _json.loads(resp.read())
-                from simplicity.display import show_balance
-
-                show_balance(data)
+            from simplicity.client import SimplicityClient
+            data = SimplicityClient.fetch_balance(self.config.api_key)
+            from simplicity.display import show_balance_detail
+            show_balance_detail(data)
         except Exception as e:
             error_message(f"Could not check balance: {e}")
+
+    def _check_usage(self, days_arg: str):
+        """Check pollen balance and usage."""
+        try:
+            days = int(days_arg) if days_arg else 30
+        except ValueError:
+            days = 30
+        
+        from simplicity.client import SimplicityClient, SimplicityAPIError
+        from simplicity.display import show_balance_detail, show_usage
+        
+        try:
+            balance = SimplicityClient.fetch_balance(self.config.api_key)
+            show_balance_detail(balance)
+        except Exception:
+            console.print("[dim]Balance unavailable[/]")
+        
+        try:
+            usage = SimplicityClient.fetch_usage(self.config.api_key, days=days)
+            show_usage(usage)
+        except SimplicityAPIError as e:
+            if e.status == 403:
+                console.print("[dim]Usage history needs account:usage scope[/]")
+            else:
+                error_message(f"Usage: {e}")
+        except Exception as e:
+            error_message(f"Usage: {e}")
 
     def _list_tools(self):
         """List available tools."""

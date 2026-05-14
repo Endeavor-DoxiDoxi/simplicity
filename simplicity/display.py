@@ -231,6 +231,7 @@ def help_text():
   [cyan]/clear[/]     Clear conversation history
   [cyan]/model[/]     Show/set current model
   [cyan]/balance[/]   Check pollen balance
+  [cyan]/usage[/]     View balance + usage history
   [cyan]/tools[/]     List available tools
   [cyan]/save[/]      Save conversation to file
   [cyan]/system[/]    Set custom system prompt
@@ -240,6 +241,109 @@ def help_text():
   [cyan]Ctrl+D[/]     Exit chat
 """
     console.print(help_content)
+
+
+def show_models_detail(models_data):
+    """Display text models with rich detail (authenticated endpoint)."""
+    if not models_data:
+        console.print("[red]Failed to fetch models[/]")
+        return
+
+    if isinstance(models_data, dict):
+        models = models_data.get("models") or models_data.get("data") or []
+    elif isinstance(models_data, list):
+        models = models_data
+    else:
+        models = []
+
+    if not models:
+        console.print("[yellow]No models found[/]")
+        return
+
+    table = Table(title="🌸 Pollinations Text Models", border_style="cyan")
+    table.add_column("Model", style="green")
+    table.add_column("Price", style="yellow")
+    table.add_column("Context", style="blue")
+    table.add_column("Tools", style="cyan")
+    table.add_column("Status", style="magenta")
+    table.add_column("Description", style="dim")
+
+    for m in models:
+        if not isinstance(m, dict):
+            continue
+        name = m.get("name", "?")
+        pricing = m.get("pricing", {})
+        if pricing:
+            prompt_p = float(pricing.get("promptTextTokens", 0)) * 1e6
+            comp_p = float(pricing.get("completionTextTokens", 0)) * 1e6
+            if prompt_p > 0:
+                price_str = f"{prompt_p:.1f}/{comp_p:.1f}"
+            else:
+                price_str = "?"
+        else:
+            price_str = "?"
+        
+        ctx = m.get("context_length", 0)
+        if ctx >= 1_000_000:
+            ctx_str = f"{ctx/1_000_000:.0f}M"
+        elif ctx >= 1000:
+            ctx_str = f"{ctx/1000:.0f}K"
+        else:
+            ctx_str = str(ctx) if ctx else "?"
+        
+        tools = "✓" if m.get("tools") else "-"
+        reasoning = "🧠" if m.get("reasoning") else ""
+        paid = m.get("paid_only", False)
+        status = "[red]💳 paid[/]" if paid else "[green]free[/]"
+        desc = (m.get("description") or "")[:60]
+        
+        table.add_row(name, price_str, ctx_str, f"{tools}{reasoning}", status, desc)
+
+    console.print(table)
+
+
+def show_usage(usage_data: dict):
+    """Display pollen balance and recent usage history."""
+    if not usage_data:
+        console.print("[yellow]No usage data available[/]")
+        return
+
+    entries = usage_data.get("usage", [])
+    if not entries:
+        console.print("[dim]No recent usage to show. Make some requests first![/]")
+        return
+
+    table = Table(title="📊 Recent Usage", border_style="cyan")
+    table.add_column("Date", style="dim")
+    table.add_column("Model", style="green")
+    table.add_column("Type", style="blue")
+    table.add_column("Tokens", style="yellow")
+    table.add_column("Cost", style="magenta")
+
+    total_cost = 0
+    for entry in entries[:25]:  # Show last 25
+        ts = entry.get("timestamp", "?")[:16]
+        model = entry.get("model", "?") or "?"
+        etype = entry.get("type", "?").replace("generate.", "")
+        
+        inp_tok = entry.get("input_text_tokens") or entry.get("input_tokens") or 0
+        out_tok = entry.get("output_text_tokens") or entry.get("output_tokens") or 0
+        tokens = f"{inp_tok}→{out_tok}"
+        
+        cost = entry.get("cost", 0)
+        total_cost += cost
+        cost_str = f"{cost:.4f}🌸" if cost else "-"
+        
+        table.add_row(ts, model, etype, tokens, cost_str)
+
+    console.print(table)
+    console.print(f"[dim]Total cost shown: [yellow]{total_cost:.4f}🌸[/][/]")
+
+
+def show_balance_detail(balance_data: dict):
+    """Display pollen balance with more detail."""
+    balance = balance_data.get("balance", "?")
+    console.print(f"[green]🌸 Pollen balance: [bold]{balance}[/][/]")
 
 
 def save_confirmation(path: str, messages: int):

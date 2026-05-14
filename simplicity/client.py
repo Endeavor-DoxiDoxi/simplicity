@@ -10,7 +10,9 @@ from typing import Optional, Generator
 
 
 BASE_URL = "https://gen.pollinations.ai/v1"
+API_BASE = "https://gen.pollinations.ai"
 MODELS_URL = "https://gen.pollinations.ai/models"
+TEXT_MODELS_URL = "https://gen.pollinations.ai/text/models"
 
 
 class SimplicityClient:
@@ -183,17 +185,71 @@ class SimplicityClient:
                     }
 
     @staticmethod
-    def fetch_models() -> list[dict]:
-        """Fetch available models from Pollinations (no auth needed)."""
-        req = urllib.request.Request(
-            MODELS_URL,
-            headers={"User-Agent": "Simplicity/1.0", "Accept": "application/json"},
-        )
+    def fetch_models(api_key: str = "") -> list[dict]:
+        """Fetch available models from Pollinations.
+        
+        Without auth: returns all models from /models
+        With auth: returns text models from /text/models (filtered by permissions)
+        """
+        headers = {"User-Agent": "Simplicity/1.0", "Accept": "application/json"}
+        
+        # Try authenticated text models first (shows paid/free status per user)
+        if api_key:
+            try:
+                req = urllib.request.Request(
+                    TEXT_MODELS_URL,
+                    headers={**headers, "Authorization": f"Bearer {api_key}"},
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+            except Exception:
+                pass  # Fall back to unauthenticated
+        
+        # Fallback: unauthenticated /models
         try:
+            req = urllib.request.Request(MODELS_URL, headers=headers)
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except Exception:
             return []
+
+    @staticmethod
+    def fetch_balance(api_key: str) -> dict:
+        """Fetch pollen balance from /account/balance."""
+        req = urllib.request.Request(
+            f"{API_BASE}/account/balance",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            try:
+                data = json.loads(body)
+                msg = data.get("error", {}).get("message", body)
+            except json.JSONDecodeError:
+                msg = body[:500]
+            raise SimplicityAPIError(e.code, msg)
+
+    @staticmethod
+    def fetch_usage(api_key: str, days: int = 30) -> dict:
+        """Fetch recent usage history from /account/usage."""
+        req = urllib.request.Request(
+            f"{API_BASE}/account/usage?days={days}",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            try:
+                data = json.loads(body)
+                msg = data.get("error", {}).get("message", body)
+            except json.JSONDecodeError:
+                msg = body[:500]
+            raise SimplicityAPIError(e.code, msg)
 
 
 class SimplicityAPIError(Exception):

@@ -109,6 +109,7 @@ simplicity auth              # Sign in with Pollinations (BYOP)
 simplicity setup             # Configure API key + model
 simplicity models            # List available models
 simplicity balance           # Check pollen balance
+simplicity usage             # View balance + usage history
 simplicity tools             # List available tools
 ```
 

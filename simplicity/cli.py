@@ -19,12 +19,15 @@ from simplicity.display import (
     error_message,
     success_message,
     show_models,
+    show_models_detail,
     show_balance,
+    show_balance_detail,
+    show_usage,
     welcome,
 )
 from simplicity.chat import ChatSession, one_shot
 from simplicity.tools import ToolRegistry
-from simplicity.client import SimplicityClient
+from simplicity.client import SimplicityClient, SimplicityAPIError
 
 
 def cmd_chat(args):
@@ -65,9 +68,17 @@ def cmd_setup(args):
 
 def cmd_models(args):
     """List available Pollinations models."""
-    console.print("[dim]Fetching models from Pollinations...[/]")
-    models = SimplicityClient.fetch_models()
-    show_models(models)
+    config = Config().load()
+    
+    if config.is_configured():
+        console.print("[dim]Fetching your available models (authenticated)...[/]")
+        models = SimplicityClient.fetch_models(api_key=config.api_key)
+        show_models_detail(models)
+    else:
+        console.print("[dim]Fetching models from Pollinations...[/]")
+        console.print("[dim](Sign in for your personalized model list)[/]")
+        models = SimplicityClient.fetch_models()
+        show_models(models)
 
 
 def cmd_balance(args):
@@ -75,22 +86,49 @@ def cmd_balance(args):
     config = Config().load()
 
     if not config.is_configured():
-        error_message("No API key configured.")
+        error_message("No API key configured. Run 'simp auth' first.")
         sys.exit(1)
 
-    import urllib.request
-    import json
-
     try:
-        req = urllib.request.Request(
-            "https://gen.pollinations.ai/account/balance",
-            headers={"Authorization": f"Bearer {config.api_key}"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read())
-            show_balance(data)
+        balance = SimplicityClient.fetch_balance(config.api_key)
+        show_balance_detail(balance)
+    except SimplicityAPIError as e:
+        error_message(f"Could not fetch balance: {e}")
     except Exception as e:
         error_message(f"Could not fetch balance: {e}")
+
+
+def cmd_usage(args):
+    """Show pollen balance and recent usage history."""
+    config = Config().load()
+
+    if not config.is_configured():
+        error_message("No API key configured. Run 'simp auth' first.")
+        sys.exit(1)
+
+    # Balance
+    try:
+        balance = SimplicityClient.fetch_balance(config.api_key)
+        show_balance_detail(balance)
+    except SimplicityAPIError as e:
+        error_message(f"Balance check failed: {e}")
+    except Exception:
+        console.print("[dim]Balance: (unavailable)[/]")
+
+    console.print()
+
+    # Usage history
+    try:
+        usage = SimplicityClient.fetch_usage(config.api_key, days=args.days)
+        show_usage(usage)
+    except SimplicityAPIError as e:
+        if e.status == 403:
+            console.print("[dim]Usage history requires account:usage permission.[/]")
+            console.print("[dim]Add this scope to your API key or re-run simp auth.[/]")
+        else:
+            error_message(f"Usage fetch failed: {e}")
+    except Exception as e:
+        error_message(f"Could not fetch usage: {e}")
 
 
 def cmd_auth(args):
@@ -182,6 +220,13 @@ def build_parser() -> argparse.ArgumentParser:
     # balance
     balance_parser = subparsers.add_parser("balance", help="Check pollen balance")
     balance_parser.set_defaults(func=cmd_balance)
+
+    # usage
+    usage_parser = subparsers.add_parser("usage", help="View pollen balance and usage history")
+    usage_parser.add_argument(
+        "-d", "--days", type=int, default=30, help="Number of days of history (default: 30)"
+    )
+    usage_parser.set_defaults(func=cmd_usage)
 
     # auth
     auth_parser = subparsers.add_parser("auth", help="Sign in with Pollinations (web redirect BYOP)")
