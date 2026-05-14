@@ -169,8 +169,8 @@ def check_api_key(api_key: str, model: str = "nova-fast") -> dict:
 
 
 def run_auth_check(console, api_key: str, model: str = "nova-fast"):
-    """Run an optional auth check and display results."""
-    console.print(f"\n[dim]Testing API key with '{model}'...[/]", end=" ")
+    """Run an optional auth check and display results. Tests nova-fast ONLY."""
+    console.print(f"\n[dim]Verifying key with '{model}'...[/]", end=" ")
     result = check_api_key(api_key, model)
 
     _auth_log(
@@ -182,26 +182,19 @@ def run_auth_check(console, api_key: str, model: str = "nova-fast"):
         console.print("[green]✅ Key works![/]")
         _auth_log("auth_check: PASS")
     else:
-        console.print(f"[red]❌ Failed (HTTP {result['status']})[/]")
-        console.print(f"  [dim]{result['message'][:200]}[/]")
+        console.print(f"[red]❌ Key check failed (HTTP {result['status']})[/]")
+        console.print(f"  [dim]Error: {result['message'][:200]}[/]")
         _auth_log(f"auth_check: FAIL (HTTP {result['status']})")
-
-        # Try alternative models
+        
         if result["status"] == 403:
-            console.print("\n[dim]Trying other models to diagnose...[/]")
-            for alt_model in ["openai", "qwen-coder", "deepseek"]:
-                console.print(f"[dim]  {alt_model}...[/]", end=" ")
-                r = check_api_key(api_key, alt_model)
-                _auth_log(f"auth_check: model={alt_model} ok={r['ok']} status={r['status']}")
-                if r["ok"]:
-                    console.print(f"[green]✅ Works! Try /model {alt_model}[/]")
-                    break
-                else:
-                    console.print(f"[red]✗[/]")
-            else:
-                console.print("\n[yellow]All models failed. The key may have no generation permission.[/]")
-                console.print("[dim]Make sure the app key has a redirect URI configured at enter.pollinations.ai[/]")
-                console.print(f"[dim]Auth log: {AUTH_LOG}[/]")
+            console.print("\n[yellow]The key was created but doesn't have generation permission.[/]")
+            console.print("[dim]This usually means the Pollinations app key needs its redirect URI\n"
+                          "configured at enter.pollinations.ai:\n"
+                          "  1. Go to https://enter.pollinations.ai\n"
+                          "  2. Find app key pk_GVZMVD9V84NNXCWd\n"
+                          "  3. Add redirect URI:\n"
+                          "     https://endeavor-doxidoxi.github.io/auth.html[/]")
+            console.print(f"\n[dim]Full auth log: [bold]simp auth-log[/] (or {AUTH_LOG})[/]")
 
     return result["ok"]
 
