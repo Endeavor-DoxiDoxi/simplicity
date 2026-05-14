@@ -260,10 +260,10 @@ class _WebUIHandler(BaseHTTPRequestHandler):
     messages: list[dict] = []
 
     def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._provider = _WebUIHandler.provider
         self._config = _WebUIHandler.config
         self._tools = _WebUIHandler.tools
-        super().__init__(*args, **kwargs)
 
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
@@ -305,7 +305,7 @@ class _WebUIHandler(BaseHTTPRequestHandler):
             return
 
         # Add user message to conversation
-        self._messages.append({"role": "user", "content": user_message})
+        _WebUIHandler.messages.append({"role": "user", "content": user_message})
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -325,7 +325,7 @@ class _WebUIHandler(BaseHTTPRequestHandler):
                 available_tools = self._tools.get_definitions() or None
 
                 for chunk in self._provider.chat_stream(
-                    messages=self._messages,
+                    messages=_WebUIHandler.messages,
                     tools=available_tools,
                     temperature=self._config.temperature,
                     max_tokens=self._config.max_tokens,

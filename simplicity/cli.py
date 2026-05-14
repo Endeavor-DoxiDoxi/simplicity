@@ -150,6 +150,16 @@ def cmd_usage(args):
         error_message(f"Could not fetch usage: {e}")
 
 
+def cmd_disconnect(args):
+    """Remove the saved API key."""
+    config = Config().load()
+    if config.api_key:
+        config.set("api_key", "")
+        success_message("API key removed. Run 'simp auth' to reconnect.")
+    else:
+        console.print("[dim]No API key is currently saved.[/]")
+
+
 def cmd_auth(args):
     """BYOP login — sign in with Pollinations (web redirect + device fallback)."""
     from simplicity.auth import byop_login, DeviceFlowError, WebRedirectCancelled
@@ -260,6 +270,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-d", "--days", type=int, default=30, help="Number of days of history (default: 30)"
     )
     usage_parser.set_defaults(func=cmd_usage)
+
+    # disconnect
+    disconnect_parser = subparsers.add_parser("disconnect", help="Remove saved API key")
+    disconnect_parser.set_defaults(func=cmd_disconnect)
 
     # auth
     auth_parser = subparsers.add_parser("auth", help="Sign in with Pollinations (web redirect BYOP)")
