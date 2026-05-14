@@ -224,7 +224,6 @@ def device_login(console) -> str:
     try:
         device = _post_json(DEVICE_CODE_URL, {
             "client_id": APP_KEY,
-            "scope": "generate",
         })
     except Exception as e:
         raise DeviceFlowError(f"Failed to request device code: {e}")
