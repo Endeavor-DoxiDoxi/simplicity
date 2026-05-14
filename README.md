@@ -223,6 +223,20 @@ SIMPLICITY_PROVIDER=ollama simp chat
 Built-in providers: `pollinations`, `openai`, `ollama`.
 Any OpenAI-compatible endpoint works — just set the base URL.
 
+## Discord Bot
+
+```bash
+# Install Discord support
+pip install simplicity[discord]
+
+# Run with a bot token
+simp discord -t YOUR_BOT_TOKEN
+# or: DISCORD_TOKEN=... simp discord
+```
+
+The bot responds to @mentions and DMs. Tool approvals use ✅/❌ reactions.
+Get a bot token at: https://discord.com/developers/applications
+
 ## Platform Support
 
 - 🐧 **Linux** — full support

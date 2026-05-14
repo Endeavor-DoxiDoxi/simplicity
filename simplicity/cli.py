@@ -10,6 +10,7 @@ Commands:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -96,6 +97,18 @@ def cmd_balance(args):
         error_message(f"Could not fetch balance: {e}")
     except Exception as e:
         error_message(f"Could not fetch balance: {e}")
+
+
+def cmd_discord(args):
+    """Start the Simplicity Discord bot."""
+    token = args.token or os.environ.get("DISCORD_TOKEN")
+    if not token:
+        error_message("No Discord token provided.")
+        console.print("Set DISCORD_TOKEN env var or pass --token")
+        console.print("Get a token at: https://discord.com/developers/applications")
+        sys.exit(1)
+    from simplicity.discord_connector import run_discord
+    run_discord(token)
 
 
 def cmd_web(args):
@@ -226,6 +239,13 @@ def build_parser() -> argparse.ArgumentParser:
     # balance
     balance_parser = subparsers.add_parser("balance", help="Check pollen balance")
     balance_parser.set_defaults(func=cmd_balance)
+
+    # discord
+    discord_parser = subparsers.add_parser("discord", help="Start Discord bot connector")
+    discord_parser.add_argument(
+        "-t", "--token", help="Discord bot token (or set DISCORD_TOKEN env var)"
+    )
+    discord_parser.set_defaults(func=cmd_discord)
 
     # web
     web_parser = subparsers.add_parser("web", help="Start web UI chat interface")

@@ -35,5 +35,8 @@ Repository = "https://github.com/MetaMysteries8/simplicity"
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
+[project.optional-dependencies]
+discord = ["discord.py>=2.0"]
+
 [tool.setuptools.packages.find]
 where = ["."]
