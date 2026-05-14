@@ -252,6 +252,9 @@ def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
         f"{AUTHORIZE_URL}?"
         f"redirect_uri={urllib.parse.quote(redirect_uri)}"
         f"&client_id={APP_KEY}"
+        f"&scope=generate"
+        f"&budget=0"
+        f"&expiry=365"
         f"&state={state}"
     )
 
