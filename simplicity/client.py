@@ -18,7 +18,7 @@ TEXT_MODELS_URL = "https://gen.pollinations.ai/text/models"
 class SimplicityClient:
     """HTTP client for Pollinations.ai API."""
 
-    def __init__(self, api_key: str, model: str = "nova-fast"):
+    def __init__(self, api_key: str, model: str = "openai"):
         self.api_key = api_key
         self.model = model
         self.base_url = BASE_URL

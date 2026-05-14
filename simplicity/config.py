@@ -13,7 +13,7 @@ from typing import Optional
 
 DEFAULT_CONFIG = {
     "api_key": "",
-    "model": "nova-fast",
+    "model": "openai",
     "system_prompt": (
         "You are Simplicity — a capable AI assistant with tool access.\n"
         "You can read/write files, run commands, search the web, and even\n"
@@ -163,9 +163,9 @@ class Config:
 
         console.print("\n[bold]Recommended models:[/]")
         console.print(
-            "  [green]nova-fast[/]      - Ultra fast + ultra cheap (default)\n"
+            "  [green]openai[/]         - GPT-5.4 Nano, fast & balanced (default)\n"
+            "  [green]nova-fast[/]      - Ultra fast + ultra cheap\n"
             "  [green]qwen-coder[/]     - Specialized for code generation\n"
-            "  [green]openai[/]         - GPT-5.4 Nano, balanced\n"
             "  [green]deepseek[/]       - Strong reasoning + code\n"
             "  [green]claude-fast[/]    - Claude Haiku, reliable\n"
             "  [green]claude[/]         - Claude Sonnet, premium\n"
