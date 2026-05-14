@@ -30,6 +30,7 @@ class SimplicityClient:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "Simplicity/1.0",
         }
 
     def _request(self, endpoint: str, data: dict) -> dict:

@@ -203,7 +203,11 @@ def check_api_key(api_key: str, model: str = "nova-fast") -> dict:
     req = urllib.request.Request(
         "https://gen.pollinations.ai/v1/chat/completions",
         data=data,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Simplicity/1.0",
+        },
         method="POST",
     )
     try:
@@ -253,7 +257,7 @@ def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
         f"redirect_uri={urllib.parse.quote(redirect_uri)}"
         f"&client_id={APP_KEY}"
         f"&scope=generate"
-        f"&budget=0"
+        f"&budget=5"
         f"&expiry=365"
         f"&state={state}"
     )
@@ -267,11 +271,11 @@ def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
     console.print(f"  [dim]Redirect URI:[/] [green]{redirect_uri}[/]")
     console.print()
     console.print(
-        "[bold yellow]⚠️  FIRST: Register this redirect URI on your app key![/]\n"
+        "[dim]⚠️  FIRST: Register this redirect URI on your app key![/]\n"
         "  1. Go to https://enter.pollinations.ai\n"
-        "  2. Edit app key pk_GVZMVD9V84NNXCWd\n"
+        "  2. Edit app key\n"
         f"  3. Add: {redirect_uri}\n"
-        "  4. Save, then the auth will work.\n"
+        "  4. Save, then the auth will work\n"
     )
     console.print()
     console.print(f"  [dim]Opening browser to sign in...[/]")

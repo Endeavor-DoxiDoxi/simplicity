@@ -182,6 +182,9 @@ def _openai_stream(base_url: str, headers: dict, data: dict) -> Generator[dict, 
     """Parse OpenAI-compatible SSE stream. Used by all providers."""
     url = f"{base_url}/chat/completions"
     body = json.dumps(data).encode("utf-8")
+    # Add User-Agent to avoid Cloudflare 1010 blocks
+    if "User-Agent" not in headers:
+        headers["User-Agent"] = "Simplicity/1.0"
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
 
     try:
