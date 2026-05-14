@@ -195,6 +195,7 @@ def cmd_auth(args):
             console=console,
             force_device=args.device,
             skip_check=args.skip_check,
+            port=args.port,
         )
         config.set("api_key", api_key)
         success_message("API key saved! You're ready to go.")
@@ -319,6 +320,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     auth_parser.add_argument(
         "--skip-check", action="store_true", help="Skip the post-login API key verification"
+    )
+    auth_parser.add_argument(
+        "-p", "--port", type=int, default=19876,
+        help="Port for OAuth redirect (default: 19876, must match app key redirect URI)"
     )
     auth_parser.set_defaults(func=cmd_auth)
 

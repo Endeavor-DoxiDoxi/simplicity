@@ -56,8 +56,20 @@ def _generate_state(length: int = 32) -> str:
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
-def _find_free_port() -> int:
+DEFAULT_AUTH_PORT = 19876
+
+
+def _find_free_port(preferred: int = DEFAULT_AUTH_PORT) -> int:
+    """Try preferred port, fall back to OS-assigned if busy."""
     import socket
+    # Try the preferred port first
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('127.0.0.1', preferred))
+            return preferred
+        except OSError:
+            pass
+    # Fall back to any free port
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('127.0.0.1', 0))
         return s.getsockname()[1]
@@ -224,9 +236,13 @@ def run_auth_check(console, api_key: str, model: str = "nova-fast"):
 
 # ── Web redirect flow ────────────────────────────────────────────
 
-def web_redirect_login(console) -> str:
-    port = _find_free_port()
+def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
+    port = _find_free_port(port)
     state = _generate_state()
+
+    if port != DEFAULT_AUTH_PORT:
+        console.print(f"[yellow]⚠️  Port {DEFAULT_AUTH_PORT} is in use, using port {port} instead.[/]")
+        console.print(f"[yellow]   You may need to add http://localhost:{port} to your app key's redirect URIs.[/]")
 
     # redirect_uri = localhost — key gets scoped to where the CLI actually runs
     redirect_uri = f"http://localhost:{port}"
@@ -331,7 +347,7 @@ def device_login(console) -> str:
 
 # ── Unified entry ─────────────────────────────────────────────────
 
-def byop_login(console=None, force_device: bool = False, skip_check: bool = False) -> str:
+def byop_login(console=None, force_device: bool = False, skip_check: bool = False, port: int = DEFAULT_AUTH_PORT) -> str:
     if console is None:
         class FB:
             def print(self, *a, **kw): print(*a)
@@ -341,7 +357,7 @@ def byop_login(console=None, force_device: bool = False, skip_check: bool = Fals
 
     if not force_device:
         try:
-            api_key = web_redirect_login(console)
+            api_key = web_redirect_login(console, port=port)
         except WebRedirectCancelled:
             raise
         except Exception as e:
