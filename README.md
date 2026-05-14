@@ -104,6 +104,8 @@ simplicity balance           # Check pollen balance
 simplicity tools             # List available tools
 ```
 
+After `./install.sh`, use `./simp` instead of `simplicity` (or add to PATH).
+
 ## Tools
 
 Simplicity includes built-in tools the AI can use:
