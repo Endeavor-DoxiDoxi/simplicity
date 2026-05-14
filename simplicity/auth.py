@@ -239,9 +239,7 @@ def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
     port = _find_free_port(port)
     state = _generate_state()
 
-    if port == DEFAULT_AUTH_PORT:
-        console.print(f"  [dim]Redirect URI: http://localhost:{port}[/]")
-    else:
+    if port != DEFAULT_AUTH_PORT:
         console.print(
             f"[yellow]⚠️  Port {DEFAULT_AUTH_PORT} is in use. Using port {port} instead.[/]\n"
             f"[yellow]   If this is your own app key, register this redirect URI:\n"
@@ -263,8 +261,17 @@ def web_redirect_login(console, port: int = DEFAULT_AUTH_PORT) -> str:
     console.print("[bold cyan]🔐 Simplicity × Pollinations[/]")
     console.print("[dim]Bring Your Own Pollen — 25% supports the developer[/]")
     console.print()
+    console.print(f"  [dim]Redirect URI:[/] [green]{redirect_uri}[/]")
+    console.print()
+    console.print(
+        "[bold yellow]⚠️  FIRST: Register this redirect URI on your app key![/]\n"
+        "  1. Go to https://enter.pollinations.ai\n"
+        "  2. Edit app key pk_GVZMVD9V84NNXCWd\n"
+        f"  3. Add: {redirect_uri}\n"
+        "  4. Save, then the auth will work.\n"
+    )
+    console.print()
     console.print(f"  [dim]Opening browser to sign in...[/]")
-    console.print(f"  [dim]Key will be scoped to:[/] [green]{redirect_uri}[/]")
 
     _open_browser(auth_url, console)
 
