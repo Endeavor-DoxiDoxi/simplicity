@@ -18,19 +18,33 @@ A beautiful, easy-to-use terminal AI assistant with tool calling, streaming, and
 
 ## Quick Start
 
+### 🚀 One-Command Install
+
 ```bash
-# Install
+# 1. Clone
+git clone https://github.com/Endeavor-DoxiDoxi/simplicity.git
 cd simplicity
-pip install -e .
 
-# Set up your API key
+# 2. Install (auto-creates venv, wrapper, workspace)
+./install.sh        # Linux / macOS
+# or
+install.bat         # Windows (double-click or run in cmd)
+
+# 3. Sign in (BYOP — you bring pollen, dev earns 25%)
+./simplicity auth
+
+# 4. Chat!
+./simplicity chat
+```
+
+That's it. The installer creates everything — venv, wrapper script, config, and workspace. No global pip install needed.
+
+### Manual Install
+
+```bash
+pip install -e . --break-system-packages  # or use a venv
 simplicity setup
-
-# Start chatting
 simplicity chat
-
-# Or ask a quick question
-simplicity ask "write a Python function to reverse a linked list"
 ```
 
 ## Get an API Key
