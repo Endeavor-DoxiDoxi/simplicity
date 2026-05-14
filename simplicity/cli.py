@@ -150,6 +150,29 @@ def cmd_usage(args):
         error_message(f"Could not fetch usage: {e}")
 
 
+def cmd_update(args):
+    """Update Simplicity to the latest version."""
+    import subprocess
+    
+    # Find the update script
+    update_script = None
+    for name in ["update.sh", "update.bat"]:
+        path = Path(__file__).parent.parent / name
+        if path.exists():
+            update_script = path
+            break
+    
+    if not update_script:
+        error_message("Update script not found. Try 'git pull' manually.")
+        sys.exit(1)
+    
+    console.print("[dim]Running updater...[/]")
+    if sys.platform == "win32":
+        subprocess.run(["cmd", "/c", str(update_script)], cwd=update_script.parent)
+    else:
+        subprocess.run(["bash", str(update_script)], cwd=update_script.parent)
+
+
 def cmd_disconnect(args):
     """Remove the saved API key."""
     config = Config().load()
@@ -270,6 +293,10 @@ def build_parser() -> argparse.ArgumentParser:
         "-d", "--days", type=int, default=30, help="Number of days of history (default: 30)"
     )
     usage_parser.set_defaults(func=cmd_usage)
+
+    # update
+    update_parser = subparsers.add_parser("update", help="Update to the latest version")
+    update_parser.set_defaults(func=cmd_update)
 
     # disconnect
     disconnect_parser = subparsers.add_parser("disconnect", help="Remove saved API key")

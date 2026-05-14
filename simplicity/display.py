@@ -228,6 +228,7 @@ def help_text():
 [bold]Chat Commands:[/]
   [cyan]/help[/]      Show this help
   [cyan]/quit[/]      Exit chat
+  [cyan]/disconnect[/] Remove API key
   [cyan]/clear[/]     Clear conversation history
   [cyan]/model[/]     Show/set current model
   [cyan]/models[/]    List available models

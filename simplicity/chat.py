@@ -107,6 +107,9 @@ class ChatSession:
 
         if command in ("/quit", "/exit", "/q"):
             return False
+        elif command == "/disconnect":
+            self.config.set("api_key", "")
+            success_message("API key removed. Run simp auth to reconnect.")
         elif command in ("/help", "/h", "/?"):
             help_text()
         elif command == "/clear":
