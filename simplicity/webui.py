@@ -260,10 +260,11 @@ class _WebUIHandler(BaseHTTPRequestHandler):
     messages: list[dict] = []
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        # Set BEFORE super().__init__ — handle() is called during __init__
         self._provider = _WebUIHandler.provider
         self._config = _WebUIHandler.config
         self._tools = _WebUIHandler.tools
+        super().__init__(*args, **kwargs)
 
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
