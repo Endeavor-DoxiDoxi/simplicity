@@ -1,0 +1,210 @@
+"""Command-line interface for Simplicity.
+
+Commands:
+  simplicity chat       Start interactive chat (default)
+  simplicity ask <msg>  One-shot question
+  simplicity setup      Configure API key and settings
+  simplicity models     List available models
+  simplicity balance    Check pollen balance
+  simplicity tools      List available tools
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+from simplicity.config import Config
+from simplicity.display import (
+    console,
+    error_message,
+    success_message,
+    show_models,
+    show_balance,
+    welcome,
+)
+from simplicity.chat import ChatSession, one_shot
+from simplicity.tools import ToolRegistry
+from simplicity.client import SimplicityClient
+
+
+def cmd_chat(args):
+    """Start interactive chat session."""
+    config = Config().load()
+
+    if not config.is_configured():
+        error_message("No API key configured.")
+        console.print("Run [bold]simplicity setup[/] first, or set [bold]SIMPLICITY_API_KEY[/] env var.")
+        sys.exit(1)
+
+    if args.model:
+        config.set("model", args.model)
+
+    session = ChatSession(config)
+    session.run()
+
+
+def cmd_ask(args):
+    """One-shot question mode."""
+    config = Config().load()
+
+    if not config.is_configured():
+        error_message("No API key configured. Run 'simplicity setup' first.")
+        sys.exit(1)
+
+    if args.model:
+        config.data["model"] = args.model
+
+    one_shot(config, args.prompt, no_stream=args.no_stream)
+
+
+def cmd_setup(args):
+    """Interactive setup wizard."""
+    config = Config().load()
+    config.setup_wizard()
+
+
+def cmd_models(args):
+    """List available Pollinations models."""
+    console.print("[dim]Fetching models from Pollinations...[/]")
+    models = SimplicityClient.fetch_models()
+    show_models(models)
+
+
+def cmd_balance(args):
+    """Check pollen balance."""
+    config = Config().load()
+
+    if not config.is_configured():
+        error_message("No API key configured.")
+        sys.exit(1)
+
+    import urllib.request
+    import json
+
+    try:
+        req = urllib.request.Request(
+            "https://gen.pollinations.ai/account/balance",
+            headers={"Authorization": f"Bearer {config.api_key}"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+            show_balance(data)
+    except Exception as e:
+        error_message(f"Could not fetch balance: {e}")
+
+
+def cmd_auth(args):
+    """BYOP device flow login — sign in with Pollinations."""
+    from simplicity.auth import byop_login, DeviceFlowError
+    from simplicity.config import Config
+
+    config = Config().load()
+
+    try:
+        api_key = byop_login(rich_console=console)
+        config.set("api_key", api_key)
+        success_message(f"API key saved! You're ready to go.")
+        console.print("[dim]Run [bold]simplicity chat[/] to start chatting.[/]")
+    except DeviceFlowError as e:
+        error_message(str(e))
+        sys.exit(1)
+    except KeyboardInterrupt:
+        console.print("\n[dim]Login cancelled.[/]")
+        sys.exit(0)
+
+
+def cmd_tools(args):
+    """List available tools."""
+    registry = ToolRegistry(Path.home() / ".simplicity" / "tools")
+    tools = registry.list_tools()
+
+    if not tools:
+        console.print("[dim]No tools available.[/]")
+        console.print(
+            f"[dim]Add custom tools to ~/.simplicity/tools/ (Python files with TOOL_DEFINITION + execute)[/]"
+        )
+        return
+
+    console.print("\n[bold]Available Tools:[/]\n")
+    for t in tools:
+        badge = " [yellow]⚠️[/]" if t["dangerous"] else ""
+        tag = "[dim](built-in)[/]" if t["builtin"] else "[cyan](custom)[/]"
+        console.print(f"  [bold]{t['name']}[/]{badge} {tag}")
+        console.print(f"    [dim]{t['description']}[/]")
+
+    console.print(
+        f"\n[dim]Custom tools: drop Python files in ~/.simplicity/tools/[/]"
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser."""
+    parser = argparse.ArgumentParser(
+        prog="simplicity",
+        description="🌸 Simplicity — AI Chat CLI powered by Pollinations.ai",
+        epilog="Get your API key at https://enter.pollinations.ai",
+    )
+    parser.add_argument(
+        "--version", action="version", version="simplicity 1.0.0"
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    # chat
+    chat_parser = subparsers.add_parser("chat", help="Start interactive chat")
+    chat_parser.add_argument(
+        "-m", "--model", help="Override the default model"
+    )
+    chat_parser.set_defaults(func=cmd_chat)
+
+    # ask
+    ask_parser = subparsers.add_parser("ask", help="One-shot question")
+    ask_parser.add_argument("prompt", help="The question or prompt")
+    ask_parser.add_argument(
+        "-m", "--model", help="Override the default model"
+    )
+    ask_parser.add_argument(
+        "--no-stream", action="store_true", help="Disable streaming output"
+    )
+    ask_parser.set_defaults(func=cmd_ask)
+
+    # setup
+    setup_parser = subparsers.add_parser("setup", help="Configure API key and settings")
+    setup_parser.set_defaults(func=cmd_setup)
+
+    # models
+    models_parser = subparsers.add_parser("models", help="List available models")
+    models_parser.set_defaults(func=cmd_models)
+
+    # balance
+    balance_parser = subparsers.add_parser("balance", help="Check pollen balance")
+    balance_parser.set_defaults(func=cmd_balance)
+
+    # auth
+    auth_parser = subparsers.add_parser("auth", help="Sign in with Pollinations (BYOP device flow)")
+    auth_parser.set_defaults(func=cmd_auth)
+
+    # tools
+    tools_parser = subparsers.add_parser("tools", help="List available tools")
+    tools_parser.set_defaults(func=cmd_tools)
+
+    return parser
+
+
+def main():
+    """Main entry point."""
+    parser = build_parser()
+    args = parser.parse_args()
+
+    if args.command is None:
+        # Default to chat if no command given
+        args.func = cmd_chat
+        # Inject model arg if not present
+        if not hasattr(args, "model"):
+            args.model = None
+
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

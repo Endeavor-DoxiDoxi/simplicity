@@ -1,0 +1,9 @@
+# Simplicity
+__pycache__/
+*.pyc
+*.pyo
+simplicity.egg-info/
+dist/
+build/
+*.egg
+.env

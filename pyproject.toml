@@ -1,0 +1,39 @@
+[project]
+name = "simplicity"
+version = "1.0.0"
+description = "A beautiful, easy-to-use AI chat CLI powered by Pollinations.ai"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "rich>=13.0.0",
+]
+authors = [
+    { name = "Aiden LaFountain", email = "doxi@dpdns.org" }
+]
+license = { text = "MIT" }
+keywords = ["ai", "cli", "chat", "pollinations", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.scripts]
+simplicity = "simplicity.cli:main"
+sim = "simplicity.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/MetaMysteries8/simplicity"
+Repository = "https://github.com/MetaMysteries8/simplicity"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]

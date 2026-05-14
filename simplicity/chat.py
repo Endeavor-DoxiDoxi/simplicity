@@ -1,0 +1,358 @@
+"""Interactive chat loop and conversation management for Simplicity."""
+
+import json
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from simplicity.client import SimplicityClient, SimplicityAPIError
+from simplicity.config import Config, HISTORY_DIR
+from simplicity.tools import ToolRegistry, BUILTIN_EXECUTORS
+from simplicity.display import (
+    console,
+    thinking,
+    tool_call_indicator,
+    tool_result,
+    approval_prompt,
+    render_assistant_message,
+    stream_token,
+    stream_done,
+    model_info,
+    error_message,
+    success_message,
+    warn_message,
+    help_text,
+    save_confirmation,
+    debug,
+)
+
+
+class ChatSession:
+    """Manages an interactive chat conversation."""
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.client = SimplicityClient(
+            api_key=config.api_key,
+            model=config.model,
+        )
+        self.tools = ToolRegistry(Path.home() / ".simplicity" / "tools")
+
+        # Conversation state
+        self.messages: list[dict] = []
+        self._init_system_prompt()
+
+    def _init_system_prompt(self):
+        """Set up the system prompt."""
+        system_prompt = self.config.system_prompt
+        # Add tool awareness
+        tool_names = self.tools.get_tool_names()
+        if tool_names:
+            system_prompt += (
+                f"\n\nYou have access to these tools: {', '.join(tool_names)}. "
+                "Use them when helpful to complete tasks."
+            )
+        self.messages.append({"role": "system", "content": system_prompt})
+
+    def run(self):
+        """Start the interactive chat loop."""
+        from simplicity.display import welcome
+
+        welcome()
+        model_info(self.config.model)
+
+        # Check if API key is set
+        if not self.config.is_configured():
+            warn_message("No API key configured. Run 'simplicity setup' first.")
+            return
+
+        # Main chat loop
+        while True:
+            try:
+                user_input = self._get_input()
+                if user_input is None:
+                    break  # EOF
+                if not user_input.strip():
+                    continue
+
+                # Handle commands
+                if user_input.startswith("/"):
+                    if self._handle_command(user_input):
+                        continue
+                    else:
+                        break  # /quit
+
+                # Normal chat
+                self._handle_chat(user_input)
+
+            except KeyboardInterrupt:
+                console.print("\n[dim](Interrupted)[/]")
+                continue
+            except EOFError:
+                break
+
+        console.print("\n[dim]Goodbye! ✌️[/]")
+
+    def _get_input(self) -> Optional[str]:
+        """Get user input with a nice prompt."""
+        return console.input("[bold cyan]You ›[/] ")
+
+    def _handle_command(self, cmd: str) -> bool:
+        """Handle a slash command. Returns False if should exit."""
+        parts = cmd.split(maxsplit=1)
+        command = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else ""
+
+        if command in ("/quit", "/exit", "/q"):
+            return False
+        elif command in ("/help", "/h", "/?"):
+            help_text()
+        elif command == "/clear":
+            self.messages = []
+            self._init_system_prompt()
+            success_message("Conversation cleared")
+        elif command == "/model":
+            if arg:
+                self.client.model = arg
+                self.config.set("model", arg)
+                success_message(f"Model set to: {arg}")
+            else:
+                console.print(f"[dim]Current model:[/] [green]{self.client.model}[/]")
+                console.print("[dim]Use /model <name> to change[/]")
+        elif command == "/balance":
+            self._check_balance()
+        elif command == "/tools":
+            self._list_tools()
+        elif command == "/save":
+            self._save_conversation(arg)
+        elif command == "/system":
+            if arg:
+                self.config.set("system_prompt", arg)
+                # Replace system message
+                self.messages = [m for m in self.messages if m["role"] != "system"]
+                self.messages.insert(0, {"role": "system", "content": arg})
+                success_message("System prompt updated")
+            else:
+                sys_msg = next(
+                    (m["content"] for m in self.messages if m["role"] == "system"), ""
+                )
+                console.print(f"[dim]System prompt:[/]\n{sys_msg[:200]}...")
+        else:
+            warn_message(f"Unknown command: {command}")
+
+        return True
+
+    def _handle_chat(self, user_input: str):
+        """Process a normal chat message with tool calling loop."""
+        self.messages.append({"role": "user", "content": user_input})
+
+        # Tool calling loop
+        max_tool_rounds = 5
+        for _ in range(max_tool_rounds):
+            try:
+                response = self._stream_and_collect()
+            except SimplicityAPIError as e:
+                if e.is_auth_error:
+                    error_message(f"Authentication failed. Check your API key with: simplicity setup")
+                elif e.is_balance_error:
+                    error_message(f"Insufficient pollen balance. Top up at enter.pollinations.ai")
+                else:
+                    error_message(str(e))
+                return
+
+            if response is None:
+                return  # Interrupted
+
+            # Check for tool calls
+            if response.get("tool_calls"):
+                self._execute_tool_calls(response["tool_calls"])
+                # Continue loop to send tool results back
+                continue
+            else:
+                # Final text response
+                content = response.get("content", "")
+                if content:
+                    self.messages.append({"role": "assistant", "content": content})
+                return
+
+        warn_message("Max tool calling rounds reached")
+
+    def _stream_and_collect(self) -> Optional[dict]:
+        """Stream the response, collecting content and tool calls."""
+        available_tools = self.tools.get_definitions() or None
+
+        full_content = ""
+        tool_calls = []
+
+        try:
+            with thinking():
+                for chunk in self.client.chat_stream(
+                    messages=self.messages,
+                    tools=available_tools,
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens,
+                ):
+                    if chunk["type"] == "content":
+                        stream_token(chunk["content"])
+                        full_content += chunk["content"]
+                    elif chunk["type"] == "tool_call":
+                        tool_calls.append(
+                            {
+                                "id": chunk.get("id", ""),
+                                "type": "function",
+                                "function": {
+                                    "name": chunk["name"],
+                                    "arguments": chunk["arguments"],
+                                },
+                            }
+                        )
+                    elif chunk["type"] == "finish":
+                        usage = chunk.get("usage")
+                        if usage:
+                            tk = usage.get("total_tokens", "?")
+                            debug(f"Tokens: {tk}")
+
+            stream_done()
+            return {"content": full_content, "tool_calls": tool_calls}
+
+        except KeyboardInterrupt:
+            console.print("\n[dim](Stopped)[/]")
+            return None
+
+    def _execute_tool_calls(self, tool_calls: list[dict]):
+        """Execute tool calls, with user approval for dangerous ones."""
+        # Add assistant message with tool calls
+        assistant_msg = {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": tool_calls,
+        }
+        self.messages.append(assistant_msg)
+
+        for tc in tool_calls:
+            fn = tc["function"]
+            name = fn["name"]
+            try:
+                args = json.loads(fn["arguments"])
+            except json.JSONDecodeError:
+                args = {}
+
+            tool_call_indicator(name, args)
+
+            # Check if approval needed
+            if self.tools.requires_approval(name):
+                if not approval_prompt(name, args):
+                    result = "User denied this tool call."
+                    tool_result(result)
+                    self.messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "content": result,
+                        }
+                    )
+                    continue
+
+            # Execute tool
+            result = self.tools.execute(name, args)
+            tool_result(result)
+
+            # Add tool result to conversation
+            self.messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result,
+                }
+            )
+
+    def _check_balance(self):
+        """Check pollen balance."""
+        try:
+            import urllib.request
+            import json as _json
+
+            req = urllib.request.Request(
+                "https://gen.pollinations.ai/account/balance",
+                headers={"Authorization": f"Bearer {self.config.api_key}"},
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = _json.loads(resp.read())
+                from simplicity.display import show_balance
+
+                show_balance(data)
+        except Exception as e:
+            error_message(f"Could not check balance: {e}")
+
+    def _list_tools(self):
+        """List available tools."""
+        tools = self.tools.list_tools()
+        if not tools:
+            console.print("[dim]No tools available[/]")
+            return
+        for t in tools:
+            badge = "[yellow]⚠️ [/]" if t["dangerous"] else ""
+            tag = "[dim](built-in)[/]" if t["builtin"] else "[cyan](custom)[/]"
+            console.print(f"  {badge}[bold]{t['name']}[/] {tag}")
+            console.print(f"    [dim]{t['description']}[/]")
+
+    def _save_conversation(self, filename: str = ""):
+        """Save the conversation to a file."""
+        if not filename:
+            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            filename = f"chat-{ts}.json"
+
+        path = HISTORY_DIR / filename
+        data = {
+            "timestamp": datetime.now().isoformat(),
+            "model": self.client.model,
+            "messages": self.messages,
+        }
+        path.write_text(json.dumps(data, indent=2))
+        save_confirmation(str(path), len(self.messages))
+
+
+def one_shot(config: Config, prompt: str, no_stream: bool = False):
+    """One-shot ask mode: send a single prompt, get a response, exit."""
+    client = SimplicityClient(api_key=config.api_key, model=config.model)
+    messages = [
+        {"role": "system", "content": config.system_prompt},
+        {"role": "user", "content": prompt},
+    ]
+
+    if no_stream:
+        # Non-streaming mode
+        try:
+            with thinking():
+                response = client.chat(
+                    messages=messages,
+                    tools=None,
+                    stream=False,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                )
+            choice = response.get("choices", [{}])[0]
+            content = choice.get("message", {}).get("content", "")
+            render_assistant_message(content)
+        except SimplicityAPIError as e:
+            error_message(str(e))
+    else:
+        # Streaming mode
+        full_content = ""
+        try:
+            with thinking():
+                for chunk in client.chat_stream(
+                    messages=messages,
+                    temperature=config.temperature,
+                    max_tokens=config.max_tokens,
+                ):
+                    if chunk["type"] == "content":
+                        stream_token(chunk["content"])
+                        full_content += chunk["content"]
+            stream_done()
+        except KeyboardInterrupt:
+            console.print("\n[dim](Stopped)[/]")
+        except SimplicityAPIError as e:
+            error_message(str(e))
