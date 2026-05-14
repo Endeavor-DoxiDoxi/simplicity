@@ -13,6 +13,8 @@ echo ""
 echo "  .  .  .   S I M P L I C I T Y   I N S T A L L E R"
 echo "  ------------------------------------------------"
 echo ""
+echo "  Install directory: $SIMPLICITY_DIR"
+echo ""
 
 # ── Pick environment type ────────────────────
 echo "Choose environment type:"
@@ -37,19 +39,6 @@ echo "  [1] simp          - short & quick"
 echo "  [2] simplicity    - full name (recommended)"
 read -p "Choice [2]: " name_choice
 name_choice=${name_choice:-2}
-
-if [ "$name_choice" = "1" ]; then
-    WRAPPER_NAME="simp"
-else
-    WRAPPER_NAME="simplicity"
-fi
-
-# Handle conflict: if simplicity/ dir exists, append .sh
-if [ "$WRAPPER_NAME" = "simplicity" ] && [ -d "$SIMPLICITY_DIR/simplicity" ]; then
-    WRAPPER_NAME="simplicity.sh"
-    echo "  Note: 'simplicity' is the package dir, using 'simplicity.sh' instead"
-fi
-WRAPPER_BIN="$SIMPLICITY_DIR/$WRAPPER_NAME"
 
 # ── Python check ──────────────────────────────
 find_python() {
@@ -118,23 +107,28 @@ else
     setup_venv
 fi
 
-# ── Create wrapper script ─────────────────────
+# ── Create wrapper: always simp (guaranteed no conflict) ──
 if [ "$env_choice" = "2" ]; then
-    cat > "$WRAPPER_BIN" << 'WRAPPER_EOF'
+    cat > "$SIMPLICITY_DIR/simp" << 'WRAPPER_EOF'
 #!/usr/bin/env bash
-# Simplicity wrapper (conda)
 exec conda run -n simplicity simplicity "$@"
 WRAPPER_EOF
 else
-    cat > "$WRAPPER_BIN" << 'WRAPPER_EOF'
+    cat > "$SIMPLICITY_DIR/simp" << 'WRAPPER_EOF'
 #!/usr/bin/env bash
-# Simplicity wrapper (venv)
 SIMPLICITY_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 exec "$SIMPLICITY_DIR/.venv/bin/simplicity" "$@"
 WRAPPER_EOF
 fi
-chmod +x "$WRAPPER_BIN"
-echo "[OK] Wrapper: ./$WRAPPER_NAME"
+chmod +x "$SIMPLICITY_DIR/simp"
+echo "[OK] Wrapper: ./simp"
+
+# Also create simplicity.sh if user wants the full name
+if [ "$name_choice" = "2" ]; then
+    cp "$SIMPLICITY_DIR/simp" "$SIMPLICITY_DIR/simplicity.sh"
+    chmod +x "$SIMPLICITY_DIR/simplicity.sh"
+    echo "[OK] Wrapper: ./simplicity.sh"
+fi
 
 # ── Create config directories ─────────────────
 mkdir -p "$CONFIG_DIR" "$TOOLS_DIR" "$WORKSPACE_DIR"
@@ -147,13 +141,7 @@ if [ -f "$SIMPLICITY_DIR/examples/get_datetime.py" ]; then
     echo "[OK] Example tool installed"
 fi
 
-# ── PATH setup ────────────────────────────────
-echo ""
-echo "  . . . . . . . . . . . . . . . . . . . . . . . ."
-echo "  .  Simplicity installed successfully!"
-echo "  . . . . . . . . . . . . . . . . . . . . . . . ."
-echo ""
-
+# ── Done ──────────────────────────────────────
 SHELL_RC=""
 case "$SHELL" in
     */zsh)   SHELL_RC="$HOME/.zshrc" ;;
@@ -161,20 +149,28 @@ case "$SHELL" in
     */fish)  SHELL_RC="$HOME/.config/fish/config.fish" ;;
 esac
 
-echo "  Run right now:"
-echo "    ./$WRAPPER_NAME chat"
+echo ""
+echo "  . . . . . . . . . . . . . . . . . . . . . . . ."
+echo "  .  Simplicity installed successfully!"
+echo "  . . . . . . . . . . . . . . . . . . . . . . . ."
+echo ""
+echo "  >> YOU ARE IN: $SIMPLICITY_DIR"
+echo ""
+echo "  Run Simplicity from THIS folder:"
+echo "    ./simp chat"
+echo ""
+echo "  (simp was created right here — 'ls' shows it)"
+echo "  (fallback: .venv/bin/simplicity chat)"
 echo ""
 
 if [ -n "$SHELL_RC" ]; then
-    echo "  For global access (just '$WRAPPER_NAME'):"
+    echo "  For global access (just 'simp'):"
     echo "    echo 'export PATH=\"\$PATH:$SIMPLICITY_DIR\"' >> $SHELL_RC"
     echo "    source $SHELL_RC"
-    echo ""
-    echo "  After that, just run: $WRAPPER_NAME chat"
 else
     echo "  For global access, add this directory to your PATH"
 fi
 echo ""
 echo "  First-time setup:"
-echo "    ./$WRAPPER_NAME auth"
+echo "    ./simp auth"
 echo ""
