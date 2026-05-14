@@ -144,7 +144,16 @@ function escapeHtml(text) {
   return d.innerHTML;
 }
 
+function stripThinkTags(text) {
+  // Remove <think>...</think> blocks (tags + content) and orphaned tags
+  text = text.replace(/<\s*think(?:ing)?\s*>[\s\S]*?<\s*\/\s*think(?:ing)?\s*>/gi, '');
+  text = text.replace(/<\/?\s*think(?:ing)?\s*>/gi, '');
+  return text;
+}
+
 function simpleMarkdown(text) {
+  // Strip think tags first
+  text = stripThinkTags(text);
   // Code blocks
   text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
   // Inline code
@@ -305,7 +314,6 @@ class _WebUIHandler(BaseHTTPRequestHandler):
             self.send_error(400)
             return
 
-        # Add user message to conversation
         _WebUIHandler.messages.append({"role": "user", "content": user_message})
 
         self.send_response(200)
@@ -321,10 +329,13 @@ class _WebUIHandler(BaseHTTPRequestHandler):
 
         # Tool calling loop
         max_rounds = 5
-        for _ in range(max_rounds):
+        for round_num in range(max_rounds):
+            available_tools = self._tools.get_definitions() or None
+            
+            tool_calls_made = []
+            assistant_content = ""
+            
             try:
-                available_tools = self._tools.get_definitions() or None
-
                 for chunk in self._provider.chat_stream(
                     messages=_WebUIHandler.messages,
                     tools=available_tools,
@@ -332,25 +343,69 @@ class _WebUIHandler(BaseHTTPRequestHandler):
                     max_tokens=self._config.max_tokens,
                 ):
                     if chunk["type"] == "content":
+                        assistant_content += chunk["content"]
                         emit("content", content=chunk["content"])
                     elif chunk["type"] == "tool_call":
+                        tool_calls_made.append(chunk)
                         emit("tool_call", name=chunk["name"], arguments=chunk.get("arguments", "{}"))
                     elif chunk["type"] == "finish":
-                        emit("finish", reason=chunk["reason"])
-
+                        emit("finish", reason=chunk.get("reason", "stop"))
             except ProviderError as e:
-                emit("content", content=f"\n\n❌ Error: {e}")
+                emit("content", content=f"\n\nError: {e}")
                 emit("finish", reason="error")
                 return
-
-            # Check for tool calls in the last assistant message
-            # We need to collect tool calls from the stream
-            # Since we're streaming, we collect them in a separate pass
-            # For simplicity, re-request without streaming to check for tool calls
-            break  # For now, single-turn — tool loop handled by next message
-
-        emit("content", content="")
-        emit("finish", reason="stop")
+            
+            # If no tool calls, we're done
+            if not tool_calls_made:
+                if assistant_content:
+                    from simplicity.providers import _strip_think_tags
+                    assistant_content = _strip_think_tags(assistant_content)
+                    _WebUIHandler.messages.append({"role": "assistant", "content": assistant_content})
+                emit("finish", reason="stop")
+                return
+            
+            # Build assistant message with tool calls
+            openai_tool_calls = []
+            for tc in tool_calls_made:
+                openai_tool_calls.append({
+                    "id": tc.get("id", ""),
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": tc.get("arguments", "{}"),
+                    },
+                })
+            
+            _WebUIHandler.messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": openai_tool_calls,
+            })
+            
+            # Execute each tool call
+            for tc in tool_calls_made:
+                try:
+                    args = json.loads(tc.get("arguments", "{}"))
+                except json.JSONDecodeError:
+                    args = {}
+                
+                name = tc["name"]
+                try:
+                    result = self._tools.execute(name, args)
+                except Exception as e:
+                    result = f"Error: {e}"
+                
+                emit("tool_result", content=result)
+                _WebUIHandler.messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": result,
+                })
+            
+            # Continue loop for more tool calls
+        else:
+            emit("content", content="\n\nMax tool-calling rounds reached.")
+            emit("finish", reason="stop")
 
     def log_message(self, format, *args):
         """Suppress default logging."""

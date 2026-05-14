@@ -3,6 +3,7 @@
 import re
 import textwrap
 from rich.console import Console
+
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -11,6 +12,8 @@ from rich.text import Text
 from rich.live import Live
 from rich.spinner import Spinner
 from rich.columns import Columns
+
+from simplicity.providers import _strip_think_tags
 
 
 console = Console()
@@ -73,6 +76,8 @@ def approval_prompt(name: str, args: dict) -> bool:
 
 def render_assistant_message(content: str):
     """Render the assistant's message with markdown and syntax highlighting."""
+    # Strip think tags before rendering
+    content = _strip_think_tags(content)
     if not content.strip():
         return
     # Don't use rich Markdown for the full text because it's slow for large
@@ -123,16 +128,18 @@ def _render_with_code_blocks(text: str) -> Text:
             else:
                 result.append(part)
         else:
-            # Regular text — use rich Markdown for inline formatting
-            md = Markdown(part.strip(), inline_code_lexer="python")
-            result.append(md) if part.strip() else None
+            # Regular text — append plain text (Markdown renderables can't be appended to Text)
+            if part.strip():
+                result.append(part)
 
     return result
 
 
 def stream_token(token: str):
     """Print a single streaming token. Called repeatedly during streaming."""
-    console.print(token, end="", highlight=False)
+    clean = _strip_think_tags(token)
+    if clean:
+        console.print(clean, end="", highlight=False)
 
 
 def stream_done():

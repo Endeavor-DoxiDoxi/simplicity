@@ -5,9 +5,26 @@ OpenAI-compatible APIs work with zero config — just change the base URL.
 """
 
 import json
+import re
 import urllib.request
 import urllib.error
 from typing import Optional, Generator
+
+# ── Think tag stripping ──────────────────────────────────────────
+
+# Strip complete <think>...</think> blocks (tags + content inside)
+_THINK_BLOCK_RE = re.compile(
+    r'<\s*think(?:ing)?\s*>.*?<\s*/\s*think(?:ing)?\s*>',
+    re.IGNORECASE | re.DOTALL
+)
+# Strip individual tag markers as fallback
+_THINK_TAG_RE = re.compile(r'<\s*/?\s*think(?:ing)?\s*>', re.IGNORECASE)
+
+def _strip_think_tags(text: str) -> str:
+    """Remove <think> blocks (tags + content) from reasoning models."""
+    text = _THINK_BLOCK_RE.sub('', text)
+    text = _THINK_TAG_RE.sub('', text)
+    return text
 
 
 class BaseProvider:

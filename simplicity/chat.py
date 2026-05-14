@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from simplicity.client import SimplicityClient, SimplicityAPIError
+from simplicity.providers import ProviderError
 from simplicity.config import Config, HISTORY_DIR
 from simplicity.tools import ToolRegistry, BUILTIN_EXECUTORS
 from simplicity.display import (
@@ -27,6 +28,82 @@ from simplicity.display import (
     save_confirmation,
     debug,
 )
+
+
+class _StreamingThinkFilter:
+    """Filters <think> content across streaming chunks.
+
+    Models may split tags across chunks, so a simple regex per-chunk fails.
+    This state machine buffers potential partial tags at chunk boundaries.
+    """
+
+    _OPEN_RE = __import__('re').compile(r'<\s*think(?:ing)?\s*>', __import__('re').IGNORECASE)
+    _CLOSE_RE = __import__('re').compile(r'<\s*/\s*think(?:ing)?\s*>', __import__('re').IGNORECASE)
+
+    def __init__(self):
+        self.in_think = False
+        self.pending = ""
+
+    def feed(self, text: str) -> str:
+        combined = self.pending + text
+        self.pending = ""
+        result = []
+        i = 0
+
+        while i < len(combined):
+            if self.in_think:
+                match = self._CLOSE_RE.search(combined, i)
+                if match:
+                    self.in_think = False
+                    i = match.end()
+                else:
+                    # Check for partial closing tag at end
+                    remaining = combined[i:]
+                    if self._could_be_closing_tag(remaining):
+                        self.pending = remaining
+                    break
+            else:
+                match = self._OPEN_RE.search(combined, i)
+                if match:
+                    result.append(combined[i:match.start()])
+                    self.in_think = True
+                    i = match.end()
+                else:
+                    result.append(combined[i:])
+                    # Check for partial opening tag at end
+                    remaining = combined[i:]
+                    if self._could_be_opening_tag(remaining):
+                        self.pending = remaining
+                        result.pop()
+                    break
+
+        return "".join(result)
+
+    _TAG_STARTS = ['<think>', '<thinking>', '< think>', '< thinking>']
+    _CLOSE_TAG_STARTS = ['</think>', '</thinking>', '</ think>', '</ thinking>']
+
+    def _could_be_opening_tag(self, text: str) -> bool:
+        """Check if text starts with a prefix of any opening think tag."""
+        if not text or text[0] != '<':
+            return False
+        for tag in self._TAG_STARTS:
+            if tag.startswith(text):
+                return True
+        return True  # Just '<' alone is a potential start
+
+    def _could_be_closing_tag(self, text: str) -> bool:
+        """Check if text starts with a prefix of any closing think tag."""
+        if not text or not text.startswith('</'):
+            return False
+        for tag in self._CLOSE_TAG_STARTS:
+            if tag.startswith(text):
+                return True
+        return True  # Just '</' alone is a potential start
+
+    def finalize(self) -> str:
+        if not self.in_think and self.pending:
+            return self.pending
+        return ""
 
 
 class ChatSession:
@@ -160,6 +237,9 @@ class ChatSession:
         for _ in range(max_tool_rounds):
             try:
                 response = self._stream_and_collect()
+            except ProviderError as e:
+                error_message(str(e))
+                return
             except SimplicityAPIError as e:
                 if e.is_auth_error:
                     error_message(
@@ -199,39 +279,64 @@ class ChatSession:
 
         full_content = ""
         tool_calls = []
+        think_filter = _StreamingThinkFilter()
+        status = thinking()
+        status_started = False
 
         try:
-            with thinking():
-                for chunk in self.client.chat_stream(
-                    messages=self.messages,
-                    tools=available_tools,
-                    temperature=self.config.temperature,
-                    max_tokens=self.config.max_tokens,
-                ):
-                    if chunk["type"] == "content":
-                        stream_token(chunk["content"])
-                        full_content += chunk["content"]
-                    elif chunk["type"] == "tool_call":
-                        tool_calls.append(
-                            {
-                                "id": chunk.get("id", ""),
-                                "type": "function",
-                                "function": {
-                                    "name": chunk["name"],
-                                    "arguments": chunk["arguments"],
-                                },
-                            }
-                        )
-                    elif chunk["type"] == "finish":
-                        usage = chunk.get("usage")
-                        if usage:
-                            tk = usage.get("total_tokens", "?")
-                            debug(f"Tokens: {tk}")
+            for chunk in self.client.chat_stream(
+                messages=self.messages,
+                tools=available_tools,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
+            ):
+                if chunk["type"] == "content":
+                    # Start thinking indicator if not already started
+                    if not status_started:
+                        status.__enter__()
+                        status_started = True
+                    raw = chunk["content"]
+                    full_content += raw
+                    # Filter think tags for display (handles chunk boundaries)
+                    display_text = think_filter.feed(raw)
+                    if display_text:
+                        stream_token(display_text)
+                elif chunk["type"] == "tool_call":
+                    if status_started:
+                        status.__exit__(None, None, None)
+                        status_started = False
+                    tool_calls.append(
+                        {
+                            "id": chunk.get("id", ""),
+                            "type": "function",
+                            "function": {
+                                "name": chunk["name"],
+                                "arguments": chunk["arguments"],
+                            },
+                        }
+                    )
+                elif chunk["type"] == "finish":
+                    usage = chunk.get("usage")
+                    if usage:
+                        tk = usage.get("total_tokens", "?")
+                        debug(f"Tokens: {tk}")
 
+            if status_started:
+                status.__exit__(None, None, None)
             stream_done()
+
+            # Final think-tag strip on complete content for storage
+            from simplicity.providers import _strip_think_tags
+            full_content = _strip_think_tags(full_content)
+
+            if not full_content and not tool_calls:
+                warn_message("Received empty response — the model may be unavailable.")
+                return {"content": "(no response)", "tool_calls": []}
             return {"content": full_content, "tool_calls": tool_calls}
 
         except KeyboardInterrupt:
+            if status_started:
+                status.__exit__(None, None, None)
             console.print("\n[dim](Stopped)[/]")
             return None
 
@@ -389,7 +494,7 @@ def one_shot(config: Config, prompt: str, no_stream: bool = False):
             choice = response.get("choices", [{}])[0]
             content = choice.get("message", {}).get("content", "")
             render_assistant_message(content)
-        except SimplicityAPIError as e:
+        except (SimplicityAPIError, ProviderError) as e:
             error_message(str(e))
     else:
         # Streaming mode
@@ -407,5 +512,5 @@ def one_shot(config: Config, prompt: str, no_stream: bool = False):
             stream_done()
         except KeyboardInterrupt:
             console.print("\n[dim](Stopped)[/]")
-        except SimplicityAPIError as e:
+        except (SimplicityAPIError, ProviderError) as e:
             error_message(str(e))
