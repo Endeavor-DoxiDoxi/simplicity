@@ -7,7 +7,7 @@ setlocal enabledelayedexpansion
 set "SIMPLICITY_DIR=%~dp0"
 set "SIMPLICITY_DIR=%SIMPLICITY_DIR:~0,-1%"
 set "VENV_DIR=%SIMPLICITY_DIR%\.venv"
-set "WRAPPER_BAT=%SIMPLICITY_DIR%\simplicity.bat"
+set "WRAPPER_BAT=%SIMPLICITY_DIR%\simp.bat"
 set "CONFIG_DIR=%USERPROFILE%\.simplicity"
 set "TOOLS_DIR=%CONFIG_DIR%\tools"
 set "WORKSPACE_DIR=%SIMPLICITY_DIR%\workspace"
@@ -59,7 +59,7 @@ REM ── Create wrapper batch ────────────────
     echo REM Simplicity wrapper — auto-activates venv
     echo set "SIMPLICITY_DIR=%%~dp0"
     echo set "SIMPLICITY_DIR=%%SIMPLICITY_DIR:~0,-1%%"
-    echo "%%SIMPLICITY_DIR%%\.venv\Scripts\python" -m simplicity %%*
+    echo "%%SIMPLICITY_DIR%%\.venv\Scripts\simplicity" %%*
 ) > "%WRAPPER_BAT%"
 echo ✅ Wrapper script: %WRAPPER_BAT%
 
@@ -84,11 +84,10 @@ echo.
 echo   To use it from anywhere, add to your PATH:
 echo     setx PATH "%%PATH%%;%SIMPLICITY_DIR%"
 echo.
-echo   Or just run directly:
-echo     %WRAPPER_BAT% chat
+echo   Or run with:
+echo     simp chat
 echo.
 echo   First-time setup:
-echo     %WRAPPER_BAT% auth
-echo     %WRAPPER_BAT% setup
+echo     simp auth
 echo.
 pause

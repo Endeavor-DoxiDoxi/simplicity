@@ -31,10 +31,10 @@ cd simplicity
 install.bat         # Windows (double-click or run in cmd)
 
 # 3. Sign in (BYOP — you bring pollen, dev earns 25%)
-./simplicity auth
+./simp auth
 
 # 4. Chat!
-./simplicity chat
+./simp chat
 ```
 
 That's it. The installer creates everything — venv, wrapper script, config, and workspace. No global pip install needed.

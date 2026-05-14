@@ -6,7 +6,7 @@ set -euo pipefail
 
 SIMPLICITY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$SIMPLICITY_DIR/.venv"
-WRAPPER_BIN="$SIMPLICITY_DIR/simplicity"
+WRAPPER_BIN="$SIMPLICITY_DIR/simp"
 CONFIG_DIR="$HOME/.simplicity"
 TOOLS_DIR="$CONFIG_DIR/tools"
 WORKSPACE_DIR="$SIMPLICITY_DIR/workspace"
@@ -55,7 +55,7 @@ cat > "$WRAPPER_BIN" << 'WRAPPER_EOF'
 #!/usr/bin/env bash
 # Simplicity wrapper — auto-activates venv
 SIMPLICITY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$SIMPLICITY_DIR/.venv/bin/python" -m simplicity "$@"
+exec "$SIMPLICITY_DIR/.venv/bin/simplicity" "$@"
 WRAPPER_EOF
 chmod +x "$WRAPPER_BIN"
 echo "✅ Wrapper script: $WRAPPER_BIN"
@@ -93,10 +93,9 @@ else
     echo "    export PATH=\"$SIMPLICITY_DIR:\$PATH\""
 fi
 echo ""
-echo "  Or just run directly:"
-echo "    $WRAPPER_BIN chat"
+echo "  Or run with:"
+echo "    ./simp chat"
 echo ""
 echo "  First-time setup:"
-echo "    $WRAPPER_BIN auth"
-echo "    $WRAPPER_BIN setup"
+echo "    ./simp auth"
 echo ""
