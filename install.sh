@@ -9,40 +9,33 @@ CONFIG_DIR="$HOME/.simplicity"
 TOOLS_DIR="$CONFIG_DIR/tools"
 WORKSPACE_DIR="$SIMPLICITY_DIR/workspace"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
 echo ""
-echo -e "  ${CYAN}🌸  S I M P L I C I T Y   I N S T A L L E R${NC}"
-echo -e "  ─────────────────────────────────────────"
+echo "  .  .  .   S I M P L I C I T Y   I N S T A L L E R"
+echo "  ------------------------------------------------"
 echo ""
 
 # ── Pick environment type ────────────────────
-echo -e "${BOLD}Choose environment type:${NC}"
-echo "  [1] Virtual env (venv)     — lightweight, self-contained"
-echo "  [2] Conda                   — if you use Anaconda/Miniconda"
+echo "Choose environment type:"
+echo "  [1] Virtual env (venv)    - lightweight, self-contained"
+echo "  [2] Conda                  - if you use Anaconda/Miniconda"
 
 if command -v conda &>/dev/null; then
-    echo -e "  ${GREEN}Conda detected!${NC}"
+    echo "  Conda detected!"
     DEFAULT_ENV=2
 else
-    echo -e "  ${YELLOW}Conda not found — defaulting to venv${NC}"
+    echo "  Conda not found - defaulting to venv"
     DEFAULT_ENV=1
 fi
 
-read -p "$(echo -e "${BOLD}Choice [${DEFAULT_ENV}]${NC}: ")" env_choice
+read -p "Choice [$DEFAULT_ENV]: " env_choice
 env_choice=${env_choice:-$DEFAULT_ENV}
 
 # ── Pick wrapper name ─────────────────────────
 echo ""
-echo -e "${BOLD}Pick a command name:${NC}"
-echo "  [1] simp          — short & quick"
-echo "  [2] simplicity    — full name (recommended)"
-read -p "$(echo -e "${BOLD}Choice [2]${NC}: ")" name_choice
+echo "Pick a command name:"
+echo "  [1] simp          - short & quick"
+echo "  [2] simplicity    - full name (recommended)"
+read -p "Choice [2]: " name_choice
 name_choice=${name_choice:-2}
 
 if [ "$name_choice" = "1" ]; then
@@ -54,7 +47,7 @@ fi
 # Handle conflict: if simplicity/ dir exists, append .sh
 if [ "$WRAPPER_NAME" = "simplicity" ] && [ -d "$SIMPLICITY_DIR/simplicity" ]; then
     WRAPPER_NAME="simplicity.sh"
-    echo -e "  ${YELLOW}Note: 'simplicity' is the package dir, using 'simplicity.sh' instead${NC}"
+    echo "  Note: 'simplicity' is the package dir, using 'simplicity.sh' instead"
 fi
 WRAPPER_BIN="$SIMPLICITY_DIR/$WRAPPER_NAME"
 
@@ -80,49 +73,42 @@ setup_venv() {
     local PYTHON
     PYTHON=$(find_python)
     if [ -z "$PYTHON" ]; then
-        echo -e "${RED}❌ Python 3.11+ required. Install it first:${NC}"
-        echo "   Ubuntu/Debian: sudo apt install python3 python3-venv python3-full"
-        echo "   macOS:         brew install python@3.13"
+        echo "ERROR: Python 3.11+ required. Install it first:"
+        echo "  Ubuntu/Debian: sudo apt install python3 python3-venv python3-full"
+        echo "  macOS:         brew install python@3.13"
         exit 1
     fi
-    echo -e "${GREEN}✅ Found $PYTHON ($($PYTHON --version))${NC}"
+    echo "[OK] Found $PYTHON ($($PYTHON --version))"
 
     if [ ! -d "$VENV_DIR" ]; then
-        echo "📦 Creating venv..."
+        echo "... Creating venv..."
         "$PYTHON" -m venv "$VENV_DIR"
     fi
-    echo -e "${GREEN}✅ Virtual environment ready${NC}"
+    echo "[OK] Virtual environment ready"
 
-    echo "📦 Installing Simplicity..."
+    echo "... Installing Simplicity..."
     "$VENV_DIR/bin/pip" install -e "$SIMPLICITY_DIR" --quiet
-    echo -e "${GREEN}✅ Simplicity installed${NC}"
-
-    # Wrapper uses venv's installed simplicity entry point
-    SIMPLICITY_CMD="$SIMPLICITY_DIR/.venv/bin/simplicity"
+    echo "[OK] Simplicity installed"
 }
 
 # ── Setup: conda ──────────────────────────────
 setup_conda() {
     if ! command -v conda &>/dev/null; then
-        echo -e "${RED}❌ Conda not found. Please install it first.${NC}"
+        echo "ERROR: Conda not found. Please install it first."
         exit 1
     fi
 
     local ENV_NAME="simplicity"
     if conda env list | grep -q "^${ENV_NAME} "; then
-        echo -e "${GREEN}✅ Conda env '${ENV_NAME}' already exists${NC}"
+        echo "[OK] Conda env '${ENV_NAME}' already exists"
     else
-        echo "📦 Creating conda env '${ENV_NAME}' with Python 3.13..."
+        echo "... Creating conda env '${ENV_NAME}' with Python 3.13..."
         conda create -y -n "$ENV_NAME" python=3.13 pip
     fi
 
-    echo "📦 Installing Simplicity..."
-    # Run pip in the conda env
+    echo "... Installing Simplicity..."
     conda run -n "$ENV_NAME" pip install -e "$SIMPLICITY_DIR" --quiet
-    echo -e "${GREEN}✅ Simplicity installed${NC}"
-
-    # Wrapper uses conda run
-    SIMPLICITY_CMD="conda run -n simplicity simplicity"
+    echo "[OK] Simplicity installed"
 }
 
 # ── Run setup ─────────────────────────────────
@@ -134,14 +120,12 @@ fi
 
 # ── Create wrapper script ─────────────────────
 if [ "$env_choice" = "2" ]; then
-    # Conda wrapper
     cat > "$WRAPPER_BIN" << 'WRAPPER_EOF'
 #!/usr/bin/env bash
 # Simplicity wrapper (conda)
 exec conda run -n simplicity simplicity "$@"
 WRAPPER_EOF
 else
-    # Venv wrapper — resolves real path for portability
     cat > "$WRAPPER_BIN" << 'WRAPPER_EOF'
 #!/usr/bin/env bash
 # Simplicity wrapper (venv)
@@ -150,24 +134,24 @@ exec "$SIMPLICITY_DIR/.venv/bin/simplicity" "$@"
 WRAPPER_EOF
 fi
 chmod +x "$WRAPPER_BIN"
-echo -e "${GREEN}✅ Wrapper:  ${SIMPLICITY_DIR}/${WRAPPER_NAME}${NC}"
+echo "[OK] Wrapper: ./$WRAPPER_NAME"
 
 # ── Create config directories ─────────────────
 mkdir -p "$CONFIG_DIR" "$TOOLS_DIR" "$WORKSPACE_DIR"
-echo -e "${GREEN}✅ Config:   ${CONFIG_DIR}${NC}"
-echo -e "${GREEN}✅ Workspace: ${WORKSPACE_DIR}${NC}"
+echo "[OK] Config:   $CONFIG_DIR"
+echo "[OK] Workspace: $WORKSPACE_DIR"
 
 # ── Copy example tools ────────────────────────
 if [ -f "$SIMPLICITY_DIR/examples/get_datetime.py" ]; then
     cp "$SIMPLICITY_DIR/examples/get_datetime.py" "$TOOLS_DIR/" 2>/dev/null || true
-    echo -e "${GREEN}✅ Example tool installed${NC}"
+    echo "[OK] Example tool installed"
 fi
 
 # ── PATH setup ────────────────────────────────
 echo ""
-echo -e "  ┌─────────────────────────────────────────────┐"
-echo -e "  │  ${GREEN}🌸 Simplicity installed successfully!${NC}     │"
-echo -e "  └─────────────────────────────────────────────┘"
+echo "  . . . . . . . . . . . . . . . . . . . . . . . ."
+echo "  .  Simplicity installed successfully!"
+echo "  . . . . . . . . . . . . . . . . . . . . . . . ."
 echo ""
 
 SHELL_RC=""
@@ -177,20 +161,20 @@ case "$SHELL" in
     */fish)  SHELL_RC="$HOME/.config/fish/config.fish" ;;
 esac
 
-echo -e "  ${BOLD}You can run it right now:${NC}"
-echo -e "    ${CYAN}${WRAPPER_BIN} chat${NC}"
+echo "  Run right now:"
+echo "    ./$WRAPPER_NAME chat"
 echo ""
 
 if [ -n "$SHELL_RC" ]; then
-    echo -e "  ${BOLD}For global access (just '${WRAPPER_NAME}'):${NC}"
-    echo -e "    ${CYAN}echo 'export PATH=\"\$PATH:${SIMPLICITY_DIR}\"' >> ${SHELL_RC}${NC}"
-    echo -e "    ${CYAN}source ${SHELL_RC}${NC}"
+    echo "  For global access (just '$WRAPPER_NAME'):"
+    echo "    echo 'export PATH=\"\$PATH:$SIMPLICITY_DIR\"' >> $SHELL_RC"
+    echo "    source $SHELL_RC"
     echo ""
-    echo -e "  After that, just run: ${CYAN}${WRAPPER_NAME} chat${NC}"
+    echo "  After that, just run: $WRAPPER_NAME chat"
 else
-    echo -e "  ${BOLD}For global access, add this directory to your PATH${NC}"
+    echo "  For global access, add this directory to your PATH"
 fi
 echo ""
-echo -e "  ${BOLD}First-time setup:${NC}"
-echo -e "    ${CYAN}${WRAPPER_BIN} auth${NC}"
+echo "  First-time setup:"
+echo "    ./$WRAPPER_NAME auth"
 echo ""

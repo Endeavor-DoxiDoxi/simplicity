@@ -11,21 +11,21 @@ set "TOOLS_DIR=%CONFIG_DIR%\tools"
 set "WORKSPACE_DIR=%SIMPLICITY_DIR%\workspace"
 
 echo.
-echo   🌸  S I M P L I C I T Y   I N S T A L L E R
-echo   ─────────────────────────────────────────
+echo   .  .  .   S I M P L I C I T Y   I N S T A L L E R
+echo   ------------------------------------------------
 echo.
 
 REM ── Pick environment type ────────────────────
 echo Choose environment type:
-echo   [1] Virtual env ^(venv^)     — lightweight, self-contained
-echo   [2] Conda                   — if you use Anaconda/Miniconda
+echo   [1] Virtual env (venv)    - lightweight, self-contained
+echo   [2] Conda                  - if you use Anaconda/Miniconda
 
 where conda >nul 2>&1
 if %errorlevel%==0 (
     echo   Conda detected!
     set DEFAULT_ENV=2
 ) else (
-    echo   Conda not found — defaulting to venv
+    echo   Conda not found - defaulting to venv
     set DEFAULT_ENV=1
 )
 
@@ -35,8 +35,8 @@ if "%ENV_CHOICE%"=="" set ENV_CHOICE=%DEFAULT_ENV%
 REM ── Pick wrapper name ─────────────────────────
 echo.
 echo Pick a command name:
-echo   [1] simp          — short ^& quick
-echo   [2] simplicity    — full name ^(recommended^)
+echo   [1] simp          - short & quick
+echo   [2] simplicity    - full name (recommended)
 
 set /p NAME_CHOICE="Choice [2]: "
 if "%NAME_CHOICE%"=="" set NAME_CHOICE=2
@@ -69,11 +69,11 @@ if "%ENV_CHOICE%"=="1" (
     )
     :found_python
     if "%PYTHON%"=="" (
-        echo ❌ Python 3.11+ required. Install from https://python.org
+        echo ERROR: Python 3.11+ required. Install from https://python.org
         pause
         exit /b 1
     )
-    echo ✅ Found Python
+    echo [OK] Found Python
 )
 
 REM ── Setup environment ─────────────────────────
@@ -87,44 +87,44 @@ REM ── Create wrapper batch ────────────────
 if "%ENV_CHOICE%"=="2" (
     (
         echo @echo off
-        echo REM Simplicity wrapper ^(conda^)
+        echo REM Simplicity wrapper (conda)
         echo conda run -n simplicity simplicity %%*
     ) > "%WRAPPER_BAT%"
 ) else (
     (
         echo @echo off
-        echo REM Simplicity wrapper ^(venv^)
+        echo REM Simplicity wrapper (venv)
         echo set "SIM=%%~dp0"
         echo set "SIM=%%SIM:~0,-1%%"
         echo "%%SIM%%\.venv\Scripts\simplicity" %%*
     ) > "%WRAPPER_BAT%"
 )
-echo ✅ Wrapper: %WRAPPER_NAME%.bat
+echo [OK] Wrapper: %WRAPPER_NAME%.bat
 
 REM ── Create config directories ─────────────────
 mkdir "%CONFIG_DIR%" 2>nul
 mkdir "%TOOLS_DIR%" 2>nul
 mkdir "%WORKSPACE_DIR%" 2>nul
-echo ✅ Config:    %CONFIG_DIR%
-echo ✅ Workspace: %WORKSPACE_DIR%
+echo [OK] Config:    %CONFIG_DIR%
+echo [OK] Workspace: %WORKSPACE_DIR%
 
 REM ── Copy example tools ────────────────────────
 if exist "%SIMPLICITY_DIR%\examples\get_datetime.py" (
     copy "%SIMPLICITY_DIR%\examples\get_datetime.py" "%TOOLS_DIR%\" >nul 2>&1
-    echo ✅ Example tool installed
+    echo [OK] Example tool installed
 )
 
 echo.
-echo   ┌─────────────────────────────────────────────┐
-echo   │  🌸 Simplicity installed successfully!      │
-echo   └─────────────────────────────────────────────┘
+echo   . . . . . . . . . . . . . . . . . . . . . . . .
+echo   .  Simplicity installed successfully!
+echo   . . . . . . . . . . . . . . . . . . . . . . . .
 echo.
 echo   Run right now:
 echo     %WRAPPER_NAME% chat
 echo.
 echo   For global access (just '%WRAPPER_NAME%'):
 echo     setx PATH "%%PATH%%;%SIMPLICITY_DIR%"
-echo     ^(restart your terminal after^)
+echo     (restart your terminal after)
 echo.
 echo   First-time setup:
 echo     %WRAPPER_NAME% auth
@@ -133,26 +133,26 @@ pause
 goto :eof
 
 :setup_venv
-echo 📦 Creating virtual environment...
+echo ... Creating virtual environment...
 if not exist "%SIMPLICITY_DIR%\.venv" (
     "%PYTHON%" -m venv "%SIMPLICITY_DIR%\.venv"
 )
-echo ✅ Virtual environment ready
+echo [OK] Virtual environment ready
 
-echo 📦 Installing Simplicity...
+echo ... Installing Simplicity...
 "%SIMPLICITY_DIR%\.venv\Scripts\pip" install -e "%SIMPLICITY_DIR%" --quiet
 if errorlevel 1 (
-    echo ❌ pip install failed. Try running as administrator.
+    echo ERROR: pip install failed. Try running as administrator.
     pause
     exit /b 1
 )
-echo ✅ Simplicity installed
+echo [OK] Simplicity installed
 goto :eof
 
 :setup_conda
 where conda >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Conda not found. Install from https://docs.conda.io
+    echo ERROR: Conda not found. Install from https://docs.conda.io
     pause
     exit /b 1
 )
@@ -160,18 +160,18 @@ if errorlevel 1 (
 REM Check if env already exists
 conda env list | findstr /C:"simplicity " >nul 2>&1
 if errorlevel 1 (
-    echo 📦 Creating conda env 'simplicity'...
+    echo ... Creating conda env 'simplicity'...
     conda create -y -n simplicity python=3.13 pip
     if errorlevel 1 (
-        echo ❌ Conda env creation failed
+        echo ERROR: Conda env creation failed
         pause
         exit /b 1
     )
 ) else (
-    echo ✅ Conda env 'simplicity' already exists
+    echo [OK] Conda env 'simplicity' already exists
 )
 
-echo 📦 Installing Simplicity...
+echo ... Installing Simplicity...
 conda run -n simplicity pip install -e "%SIMPLICITY_DIR%" --quiet
-echo ✅ Simplicity installed
+echo [OK] Simplicity installed
 goto :eof
