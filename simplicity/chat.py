@@ -270,6 +270,12 @@ class ChatSession:
             result = self.tools.execute(name, args)
             tool_result(result)
 
+            # Reload tools if a new one was created
+            if name == "create_tool":
+                self.tools._loaded = False  # force reload
+                self.tools.load_custom_tools()
+                console.print("[dim]🔄 Tools reloaded — new tool is now available[/]")
+
             # Add tool result to conversation
             self.messages.append(
                 {
@@ -278,6 +284,20 @@ class ChatSession:
                     "content": result,
                 }
             )
+
+    def _list_models(self):
+        """List available models from within chat."""
+        try:
+            from simplicity.client import SimplicityClient
+            from simplicity.display import show_models_detail, show_models
+            console.print("[dim]Fetching models...[/]")
+            models = SimplicityClient.fetch_models(api_key=self.config.api_key)
+            if self.config.is_configured():
+                show_models_detail(models)
+            else:
+                show_models(models)
+        except Exception as e:
+            error_message(f"Could not fetch models: {e}")
 
     def _check_balance(self):
         """Check pollen balance."""

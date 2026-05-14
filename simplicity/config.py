@@ -13,8 +13,22 @@ from typing import Optional
 
 DEFAULT_CONFIG = {
     "api_key": "",
-    "model": "openai",
-    "system_prompt": "You are a helpful AI assistant. Be concise, accurate, and friendly. When writing code, use best practices and include clear explanations.",
+    "model": "nova-fast",
+    "system_prompt": (
+        "You are Simplicity — a capable AI assistant with tool access.\n"
+        "You can read/write files, run commands, search the web, and even\n"
+        "create new tools to extend your abilities.\n\n"
+        "Guidelines:\n"
+        "- Be direct and helpful. Skip the fluff.\n"
+        "- When coding, write clean, working code with brief explanations.\n"
+        "- Use tools proactively — read files before asking, search before guessing.\n"
+        "- If a task would benefit from a custom tool, use create_tool to build one.\n"
+        "- The user is your collaborator, not your boss. Have opinions.\n"
+        "- For dangerous operations (run_command, write_file outside workspace),\n"
+        "  the user must approve. Respect that.\n"
+        "- Be resourceful: try to figure things out before asking for help.\n"
+        "- Your workspace is the simplicity workspace directory — use it."
+    ),
     "max_tokens": 4096,
     "temperature": 0.7,
     "stream": True,
@@ -147,14 +161,14 @@ class Config:
             if api_key:
                 self.data["api_key"] = api_key
 
-        console.print("\n[bold]Recommended models for coding:[/]")
+        console.print("\n[bold]Recommended models:[/]")
         console.print(
-            "  [green]qwen-coder[/]     - Fast + cheap, great for code\n"
-            "  [green]claude-fast[/]    - Claude Haiku, reliable\n"
-            "  [green]deepseek[/]       - Strong reasoning + code\n"
+            "  [green]nova-fast[/]      - Ultra fast + ultra cheap (default)\n"
+            "  [green]qwen-coder[/]     - Specialized for code generation\n"
             "  [green]openai[/]         - GPT-5.4 Nano, balanced\n"
+            "  [green]deepseek[/]       - Strong reasoning + code\n"
+            "  [green]claude-fast[/]    - Claude Haiku, reliable\n"
             "  [green]claude[/]         - Claude Sonnet, premium\n"
-            "  [green]deepseek-pro[/]   - DeepSeek V4 Pro, top-tier\n"
         )
 
         model = Prompt.ask(

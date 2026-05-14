@@ -8,10 +8,12 @@ A beautiful, easy-to-use terminal AI assistant with tool calling, streaming, and
 
 - 🗣️ **Interactive chat** with streaming responses
 - 🔧 **Tool calling** — AI can read/write files, run commands, search the web
+- 🛠️ **Dynamic tool creation** — AI can build new tools on demand (with approval)
 - 🧩 **Custom tools** — drop Python files in `~/.simplicity/tools/`
 - 🎨 **Beautiful TUI** — syntax-highlighted code, rich markdown
 - 🚀 **One-shot mode** — `simplicity ask "explain this code"`
 - 💰 **Balance checking** — `simplicity balance`
+- 📊 **Usage history** — `simplicity usage`
 - 📋 **Model listing** — `simplicity models`
 - 💾 **Conversation saving** — `/save` in chat mode
 - 🔌 **OpenAI-compatible** — works with any compatible API

@@ -27,6 +27,53 @@ BUILT_IN_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "create_tool",
+            "description": (
+                "Create a new custom tool that extends your capabilities. "
+                "The tool is saved as a Python file and becomes immediately available. "
+                "Use this when you need a capability that doesn't exist yet — "
+                "like accessing a specific API, performing specialized calculations, "
+                "or integrating with an external service. "
+                "REQUIRES USER APPROVAL before the tool is created."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Unique tool name (snake_case, e.g. 'get_weather')",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "What this tool does, in one sentence",
+                    },
+                    "parameters_schema": {
+                        "type": "object",
+                        "description": (
+                            "JSON Schema for the tool's parameters. "
+                            "Must have 'type': 'object', 'properties': {...}, and 'required': [...]"
+                        ),
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": (
+                            "Python code for the execute function. Must define:\n"
+                            "def execute(**kwargs) -> str:\n"
+                            "    # your code here\n"
+                            "    return result\n\n"
+                            "The function receives keyword arguments matching the parameters schema. "
+                            "Return a string result. Use stdlib modules only (urllib, json, etc). "
+                            "Handle errors gracefully — return error messages as strings, don't raise."
+                        ),
+                    },
+                },
+                "required": ["name", "description", "parameters_schema", "code"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "read_file",
             "description": "Read the contents of a file. Returns the file content as text.",
             "parameters": {
@@ -253,12 +300,60 @@ def _web_search(query: str) -> str:
 
 # ── Tool registry ──────────────────────────────────────────────────
 
+def _create_tool(name: str, description: str, parameters_schema: dict, code: str) -> str:
+    """Create a new custom tool by writing a Python file to the tools directory."""
+    import re
+    
+    # Validate name
+    if not re.match(r'^[a-z][a-z0-9_]*$', name):
+        return f"Error: Invalid tool name '{name}'. Use snake_case (lowercase letters, numbers, underscores)."
+    
+    tools_dir = Path.home() / ".simplicity" / "tools"
+    tools_dir.mkdir(parents=True, exist_ok=True)
+    
+    tool_path = tools_dir / f"{name}.py"
+    if tool_path.exists():
+        return f"Error: Tool '{name}' already exists at {tool_path}. Use a different name or delete the existing one."
+    
+    # Build the tool definition
+    tool_def = {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters_schema,
+        },
+    }
+    
+    # Generate the tool file
+    import json as _json
+    tool_file = f'''"""Custom tool: {name} — {description}"""
+
+import json
+
+TOOL_DEFINITION = {_json.dumps(tool_def, indent=2)}
+
+{code}
+'''
+    
+    try:
+        tool_path.write_text(tool_file, encoding="utf-8")
+        return (
+            f"✅ Tool '{name}' created successfully at {tool_path}.\n"
+            f"The tool is now available in your next message.\n"
+            f"Description: {description}"
+        )
+    except Exception as e:
+        return f"Error creating tool: {e}"
+
+
 BUILTIN_EXECUTORS = {
     "read_file": _read_file,
     "write_file": _write_file,
     "list_directory": _list_directory,
     "run_command": _run_command,
     "web_search": _web_search,
+    "create_tool": _create_tool,
 }
 
 
@@ -320,7 +415,7 @@ class ToolRegistry:
 
     def requires_approval(self, name: str) -> bool:
         """Check if a tool needs user approval before execution."""
-        dangerous = {"run_command", "write_file"}
+        dangerous = {"run_command", "write_file", "create_tool"}
         return name in dangerous
 
     def list_tools(self) -> list[dict]:
