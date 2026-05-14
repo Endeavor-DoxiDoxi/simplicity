@@ -13,7 +13,7 @@ from typing import Optional
 
 DEFAULT_CONFIG = {
     "api_key": "",
-    "model": "openai",
+    "model": "nova-fast",
     "system_prompt": (
         "You are Simplicity — a capable AI assistant with tool access.\n"
         "You can read/write files, run commands, search the web, and even\n"

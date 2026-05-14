@@ -191,7 +191,11 @@ def cmd_auth(args):
     config = Config().load()
 
     try:
-        api_key = byop_login(console=console, force_device=args.device)
+        api_key = byop_login(
+            console=console,
+            force_device=args.device,
+            skip_check=args.skip_check,
+        )
         config.set("api_key", api_key)
         success_message("API key saved! You're ready to go.")
         console.print("[dim]Run [bold]simp chat[/] to start chatting.[/]")
@@ -204,6 +208,12 @@ def cmd_auth(args):
     except KeyboardInterrupt:
         console.print("\n[dim]Login cancelled.[/]")
         sys.exit(0)
+
+
+def cmd_auth_log(args):
+    """Show the auth debug log."""
+    from simplicity.auth import show_auth_log
+    show_auth_log(console)
 
 
 def cmd_tools(args):
@@ -307,7 +317,14 @@ def build_parser() -> argparse.ArgumentParser:
     auth_parser.add_argument(
         "--device", action="store_true", help="Use device code flow instead of web redirect"
     )
+    auth_parser.add_argument(
+        "--skip-check", action="store_true", help="Skip the post-login API key verification"
+    )
     auth_parser.set_defaults(func=cmd_auth)
+
+    # auth-log
+    auth_log_parser = subparsers.add_parser("auth-log", help="Show auth debug log")
+    auth_log_parser.set_defaults(func=cmd_auth_log)
 
     # tools
     tools_parser = subparsers.add_parser("tools", help="List available tools")

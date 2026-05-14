@@ -77,7 +77,7 @@ class PollinationsProvider(BaseProvider):
 
     def chat_stream(self, messages, tools=None, temperature=0.7, max_tokens=4096):
         data = {
-            "model": self.model or "openai",
+            "model": self.model or "nova-fast",
             "messages": messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
