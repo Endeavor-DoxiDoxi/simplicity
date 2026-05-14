@@ -111,6 +111,7 @@ simplicity auth              # Sign in with Pollinations (BYOP)
 simplicity setup             # Configure API key + model
 simplicity models            # List available models
 simplicity balance           # Check pollen balance
+simplicity web               # Start web UI (browser chat)
 simplicity usage             # View balance + usage history
 simplicity tools             # List available tools
 ```
@@ -193,6 +194,34 @@ Pollinations provides access to many models:
 
 - Python 3.11+
 - `rich` (auto-installed)
+
+## Web UI
+
+```bash
+simp web              # Start at http://localhost:8080
+simp web -p 3000      # Custom port
+```
+
+Opens a dark-themed chat interface in your browser. Same tool system,
+streaming, and markdown rendering as the terminal — just prettier.
+
+## Providers
+
+Simplicity supports multiple AI backends. Pollinations is the default:
+
+```bash
+# Pollinations (default)
+simp chat
+
+# Use OpenAI instead
+SIMPLICITY_PROVIDER=openai OPENAI_API_KEY=sk-... simp chat
+
+# Use local Ollama
+SIMPLICITY_PROVIDER=ollama simp chat
+```
+
+Built-in providers: `pollinations`, `openai`, `ollama`.
+Any OpenAI-compatible endpoint works — just set the base URL.
 
 ## Platform Support
 
