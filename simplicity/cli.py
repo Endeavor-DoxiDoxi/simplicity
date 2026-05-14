@@ -98,6 +98,12 @@ def cmd_balance(args):
         error_message(f"Could not fetch balance: {e}")
 
 
+def cmd_web(args):
+    """Start the Simplicity web UI."""
+    from simplicity.webui import run_webui
+    run_webui(port=args.port)
+
+
 def cmd_usage(args):
     """Show pollen balance and recent usage history."""
     config = Config().load()
@@ -220,6 +226,13 @@ def build_parser() -> argparse.ArgumentParser:
     # balance
     balance_parser = subparsers.add_parser("balance", help="Check pollen balance")
     balance_parser.set_defaults(func=cmd_balance)
+
+    # web
+    web_parser = subparsers.add_parser("web", help="Start web UI chat interface")
+    web_parser.add_argument(
+        "-p", "--port", type=int, default=8080, help="Port to listen on (default: 8080)"
+    )
+    web_parser.set_defaults(func=cmd_web)
 
     # usage
     usage_parser = subparsers.add_parser("usage", help="View pollen balance and usage history")

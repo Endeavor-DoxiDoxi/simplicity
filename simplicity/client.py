@@ -18,10 +18,13 @@ TEXT_MODELS_URL = "https://gen.pollinations.ai/text/models"
 class SimplicityClient:
     """HTTP client for Pollinations.ai API."""
 
-    def __init__(self, api_key: str, model: str = "openai"):
+    def __init__(self, api_key: str, model: str = "nova-fast"):
         self.api_key = api_key
         self.model = model
         self.base_url = BASE_URL
+        # Use the provider system internally
+        from simplicity.providers import PollinationsProvider
+        self._provider = PollinationsProvider(api_key, model)
 
     def _headers(self) -> dict:
         return {
@@ -186,43 +189,16 @@ class SimplicityClient:
 
     @staticmethod
     def fetch_models(api_key: str = "") -> list[dict]:
-        """Fetch available models from Pollinations.
-        
-        Without auth: returns all models from /models
-        With auth: returns text models from /text/models (filtered by permissions)
-        """
-        headers = {"User-Agent": "Simplicity/1.0", "Accept": "application/json"}
-        
-        # Try authenticated text models first (shows paid/free status per user)
-        if api_key:
-            try:
-                req = urllib.request.Request(
-                    TEXT_MODELS_URL,
-                    headers={**headers, "Authorization": f"Bearer {api_key}"},
-                )
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    return json.loads(resp.read().decode("utf-8"))
-            except Exception:
-                pass  # Fall back to unauthenticated
-        
-        # Fallback: unauthenticated /models
-        try:
-            req = urllib.request.Request(MODELS_URL, headers=headers)
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                return json.loads(resp.read().decode("utf-8"))
-        except Exception:
-            return []
+        """Fetch available models from Pollinations."""
+        from simplicity.providers import PollinationsProvider
+        return PollinationsProvider(api_key).fetch_models()
 
     @staticmethod
     def fetch_balance(api_key: str) -> dict:
-        """Fetch pollen balance from /account/balance."""
-        req = urllib.request.Request(
-            f"{API_BASE}/account/balance",
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
+        """Fetch pollen balance."""
+        from simplicity.providers import PollinationsProvider
         try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            return PollinationsProvider(api_key).fetch_balance()
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             try:
@@ -234,14 +210,10 @@ class SimplicityClient:
 
     @staticmethod
     def fetch_usage(api_key: str, days: int = 30) -> dict:
-        """Fetch recent usage history from /account/usage."""
-        req = urllib.request.Request(
-            f"{API_BASE}/account/usage?days={days}",
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
+        """Fetch recent usage history."""
+        from simplicity.providers import PollinationsProvider
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+            return PollinationsProvider(api_key).fetch_usage(days)
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             try:
