@@ -120,73 +120,13 @@ class SimplicityClient:
         temperature: float = 0.7,
         max_tokens: int = 4096,
     ) -> Generator[dict, None, None]:
-        """Stream a chat completion. Yields delta chunks.
-
-        Each yielded dict has:
-          - type: "content" | "tool_call" | "finish"
-          - For "content": {content: str}
-          - For "tool_call": {id, name, arguments: str}
-          - For "finish": {reason, usage}
-        """
-        data = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": True,
-            "stream_options": {"include_usage": True},
-        }
-        if tools:
-            data["tools"] = tools
-            data["tool_choice"] = "auto"
-
-        tool_calls_in_progress: dict[int, dict] = {}
-
-        for chunk in self._stream_request("/chat/completions", data):
-            choices = chunk.get("choices", [])
-            usage = chunk.get("usage")
-
-            for choice in choices:
-                delta = choice.get("delta", {})
-                finish_reason = choice.get("finish_reason")
-
-                # Content delta
-                if "content" in delta and delta["content"]:
-                    yield {"type": "content", "content": delta["content"]}
-
-                # Tool call delta
-                if "tool_calls" in delta:
-                    for tc in delta["tool_calls"]:
-                        idx = tc.get("index", 0)
-                        if idx not in tool_calls_in_progress:
-                            tool_calls_in_progress[idx] = {
-                                "id": tc.get("id", ""),
-                                "name": "",
-                                "arguments": "",
-                            }
-                        entry = tool_calls_in_progress[idx]
-                        if "id" in tc and tc["id"]:
-                            entry["id"] = tc["id"]
-                        if "function" in tc:
-                            fn = tc["function"]
-                            if "name" in fn and fn["name"]:
-                                entry["name"] = fn["name"]
-                            if "arguments" in fn:
-                                entry["arguments"] += fn["arguments"]
-
-                # Finish reason
-                if finish_reason:
-                    # Emit any completed tool calls
-                    for tc in tool_calls_in_progress.values():
-                        if tc["name"]:
-                            yield {"type": "tool_call", **tc}
-                    tool_calls_in_progress.clear()
-
-                    yield {
-                        "type": "finish",
-                        "reason": finish_reason,
-                        "usage": usage,
-                    }
+        """Stream a chat completion through the provider."""
+        yield from self._provider.chat_stream(
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
     @staticmethod
     def fetch_models(api_key: str = "") -> list[dict]:
