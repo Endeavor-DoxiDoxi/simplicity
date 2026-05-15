@@ -250,6 +250,7 @@ def help_text():
   [cyan]/tools[/]     List available tools
   [cyan]/save[/]      Save conversation to file
   [cyan]/system[/]    Set custom system prompt
+  [cyan]/skillsheet[/] Read the skillsheet docs
 
 [bold]Keyboard Shortcuts:[/]
   [cyan]Ctrl+C[/]     Interrupt generation

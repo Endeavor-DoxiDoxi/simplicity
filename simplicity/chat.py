@@ -117,6 +117,10 @@ class ChatSession:
         )
         self.tools = ToolRegistry(Path.home() / ".simplicity" / "tools")
 
+        # Ensure skillsheet exists
+        from simplicity.config import init_skillsheet
+        init_skillsheet()
+
         # Conversation state
         self.messages: list[dict] = []
         self._init_system_prompt()
@@ -226,6 +230,13 @@ class ChatSession:
                     (m["content"] for m in self.messages if m["role"] == "system"), ""
                 )
                 console.print(f"[dim]System prompt:[/]\n{sys_msg[:200]}...")
+        elif command == "/skillsheet":
+            from simplicity.config import SKILLSHEET_FILE
+            if SKILLSHEET_FILE.exists():
+                console.print(f"[dim]Skillsheet:[/] {SKILLSHEET_FILE}")
+                console.print(f"[dim]Use read_file to read it, update_skillsheet to edit it.[/]")
+            else:
+                console.print("[dim]Skillsheet not found. It will be created on first chat start.[/]")
         else:
             warn_message(f"Unknown command: {command}")
 

@@ -287,6 +287,55 @@ BUILT_IN_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_skillsheet",
+            "description": ("Update the SKILLSHEET.md skill reference. "
+                "Creates an automatic backup before editing. "
+                "Use this to document new tools, patterns, lessons learned, or improve documentation. "
+                "The section parameter names the heading (e.g. 'Patterns & Best Practices'), "
+                "and content replaces/adds content under that section."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "section": {
+                        "type": "string",
+                        "description": "Section heading to update (e.g. 'Lessons Learned', 'Patterns & Best Practices')",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Markdown content to place under the section heading. Replaces existing content.",
+                    },
+                },
+                "required": ["section", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_skill_doc",
+            "description": ("Create a focused sub-sheet for a specific skill or tool. "
+                "Saved to ~/.simplicity/skills/<name>.md. "
+                "Use this for detailed standalone documentation on specific topics "
+                "like toolscript creation, debugging workflows, or integration guides."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Filename for the skill doc (without .md, e.g. 'toolscript_guide')",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Full markdown content for the skill document",
+                    },
+                },
+                "required": ["name", "content"],
+            },
+        },
+    },
 ]
 
 
@@ -603,6 +652,60 @@ def _check_command(process_id: str) -> str:
     return _ProcessManager.check(process_id)
 
 
+def _update_skillsheet(section: str, content: str) -> str:
+    """Update a section of SKILLSHEET.md with automatic backup."""
+    from simplicity.config import SKILLSHEET_FILE, SKILLS_DIR, init_skillsheet
+    import re
+    
+    # Ensure skillsheet exists
+    init_skillsheet()
+    
+    # Create backup
+    backup = SKILLSHEET_FILE.with_suffix(".backup.md")
+    backup.write_text(SKILLSHEET_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+    
+    current = SKILLSHEET_FILE.read_text(encoding="utf-8")
+    
+    # Find or create the section
+    section_heading = f"## {section}"
+    pattern = re.compile(
+        rf"^(## {re.escape(section)}\s*\n)(.*?)(?=^## |\Z)",
+        re.MULTILINE | re.DOTALL
+    )
+    match = pattern.search(current)
+    
+    if match:
+        # Replace existing section content
+        new_content = f"{match.group(1)}{content.strip()}\n\n"
+        updated = current[:match.start()] + new_content + current[match.end():]
+    else:
+        # Append new section at end
+        updated = current.rstrip() + f"\n\n---\n\n## {section}\n\n{content.strip()}\n"
+    
+    SKILLSHEET_FILE.write_text(updated, encoding="utf-8")
+    return f"✅ Updated skillsheet section '{section}' (backup saved to {backup.name})"
+
+
+def _create_skill_doc(name: str, content: str) -> str:
+    """Create a focused sub-sheet for a specific skill."""
+    from simplicity.config import SKILLS_DIR
+    import re
+    
+    SKILLS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Sanitize filename
+    safe_name = re.sub(r'[^a-z0-9_-]', '_', name.lower())[:50]
+    skill_path = SKILLS_DIR / f"{safe_name}.md"
+    
+    if skill_path.exists():
+        # Backup existing
+        backup = skill_path.with_suffix(".backup.md")
+        backup.write_text(skill_path.read_text(encoding="utf-8"), encoding="utf-8")
+    
+    skill_path.write_text(content, encoding="utf-8")
+    return f"✅ Created skill doc: {skill_path}\nRead it with read_file(path='{skill_path}')"
+
+
 # ── Tool registry ──────────────────────────────────────────────────
 
 def _create_tool(name: str, description: str, parameters_schema: dict, code: str, toolscript: dict = None) -> str:
@@ -714,6 +817,8 @@ BUILTIN_EXECUTORS = {
     "web_search": _web_search,
     "web_fetch": _web_fetch,
     "get_current_time": _get_current_time,
+    "update_skillsheet": _update_skillsheet,
+    "create_skill_doc": _create_skill_doc,
     "create_tool": _create_tool,
 }
 
