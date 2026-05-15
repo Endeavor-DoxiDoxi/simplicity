@@ -336,6 +336,100 @@ BUILT_IN_TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "load_skill",
+            "description": ("Load and read a skill module from ~/.simplicity/skills/<name>/SKILL.md. "
+                "Skills are Claude-style modules with instructions for specific tasks. "
+                "Use this when you need specialized guidance for a task category. "
+                "Skills load only when invoked — their content doesn't occupy context otherwise."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The skill name (directory name under skills/, e.g. 'debug' or 'web_scraping')",
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_skill",
+            "description": ("Create a new Claude-style skill module in ~/.simplicity/skills/<name>/SKILL.md. "
+                "Skills extend your capabilities with specialized instructions for specific tasks. "
+                "Include a description header so you know when to load it automatically."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Skill name (directory name, e.g. 'debug' or 'web_scraping')",
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "When to use this skill (e.g. 'Use when debugging Python code or investigating errors')",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Full SKILL.md markdown content with instructions, workflows, and examples",
+                    },
+                },
+                "required": ["name", "description", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "edit_identity",
+            "description": ("Edit one of your identity files (SOUL.md, AGENTS.md, USER.md, MEMORY.md, TOOLS.md). "
+                "Creates an automatic backup before editing. "
+                "Use this to update your personality, rules, user info, or environment notes."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "string",
+                        "description": "Which identity file to edit: 'soul', 'agents', 'user', 'memory', or 'tools'",
+                        "enum": ["soul", "agents", "user", "memory", "tools"],
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "New full content for the file (replaces existing)",
+                    },
+                },
+                "required": ["file", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_memory",
+            "description": ("Write or append to a daily memory file. "
+                "Use memory/YYYY-MM-DD.md for daily logs. "
+                "This is your short-term memory — record what happened, decisions made, lessons learned."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Date in YYYY-MM-DD format (defaults to today)",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to append to the daily memory file",
+                    },
+                },
+                "required": ["content"],
+            },
+        },
+    },
 ]
 
 
@@ -364,8 +458,9 @@ def _read_file(path: str, offset: int = 1, limit: int = 200) -> str:
 
 
 def _write_file(path: str, content: str) -> str:
+    from simplicity.config import WORKSPACE_DIR
     p = Path(path).expanduser().resolve()
-    workspace = Path.cwd().resolve()
+    workspace = WORKSPACE_DIR.resolve()
     # Check if target is outside workspace
     try:
         is_in_workspace = p == workspace or p.relative_to(workspace)
@@ -706,6 +801,107 @@ def _create_skill_doc(name: str, content: str) -> str:
     return f"✅ Created skill doc: {skill_path}\nRead it with read_file(path='{skill_path}')"
 
 
+def _load_skill(name: str) -> str:
+    """Load and read a Claude-style skill module."""
+    from simplicity.config import SKILLS_DIR
+    import re
+    
+    safe_name = re.sub(r'[^a-z0-9_-]', '_', name.lower())[:50]
+    skill_file = SKILLS_DIR / safe_name / "SKILL.md"
+    
+    if not skill_file.exists():
+        # Also try direct .md file (old format)
+        skill_file = SKILLS_DIR / f"{safe_name}.md"
+        if not skill_file.exists():
+            available = []
+            if SKILLS_DIR.exists():
+                for d in SKILLS_DIR.iterdir():
+                    if d.is_dir() and (d / "SKILL.md").exists():
+                        available.append(d.name)
+                    elif d.suffix == '.md':
+                        available.append(d.stem)
+            if available:
+                return f"Skill '{name}' not found. Available skills: {', '.join(sorted(available))}"
+            return f"Skill '{name}' not found at {skill_file}. Use create_skill to make one."
+    
+    content = skill_file.read_text(encoding="utf-8")
+    return f"--- SKILL: {name} ---\n\n{content}\n\n--- End of skill: {name} ---"
+
+
+def _create_skill(name: str, description: str, content: str) -> str:
+    """Create a new Claude-style skill module."""
+    from simplicity.config import SKILLS_DIR
+    import re
+    
+    safe_name = re.sub(r'[^a-z0-9_-]', '_', name.lower())[:50]
+    skill_dir = SKILLS_DIR / safe_name
+    skill_file = skill_dir / "SKILL.md"
+    
+    if skill_file.exists():
+        # Backup existing
+        backup = skill_file.with_suffix(".backup.md")
+        backup.write_text(skill_file.read_text(encoding="utf-8"), encoding="utf-8")
+    
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    
+    full_content = f"""# {name}
+
+> {description}
+
+{content}
+"""
+    skill_file.write_text(full_content, encoding="utf-8")
+    return f"✅ Created skill '{name}' at {skill_file}\nLoad it with: load_skill(name='{safe_name}')"
+
+
+def _edit_identity(file: str, content: str) -> str:
+    """Edit an identity file with automatic backup."""
+    from simplicity.config import (
+        SOUL_FILE, AGENTS_FILE, USER_FILE, MEMORY_FILE, TOOLS_FILE
+    )
+    
+    file_map = {
+        "soul": SOUL_FILE,
+        "agents": AGENTS_FILE,
+        "user": USER_FILE,
+        "memory": MEMORY_FILE,
+        "tools": TOOLS_FILE,
+    }
+    
+    if file not in file_map:
+        return f"Unknown identity file: {file}. Use: {', '.join(file_map.keys())}"
+    
+    target = file_map[file]
+    
+    # Backup if exists
+    if target.exists():
+        backup = target.with_suffix(".backup.md")
+        backup.write_text(target.read_text(encoding="utf-8"), encoding="utf-8")
+    
+    target.write_text(content, encoding="utf-8")
+    return f"✅ Updated {target.name} (backup saved)"
+
+
+def _write_memory(date: str = "", content: str = "") -> str:
+    """Append to a daily memory file."""
+    from simplicity.config import MEMORY_DIR
+    from datetime import datetime
+    
+    if not date:
+        date = datetime.now().strftime("%Y-%m-%d")
+    
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+    memory_file = MEMORY_DIR / f"{date}.md"
+    
+    timestamp = datetime.now().strftime("%H:%M")
+    entry = f"\n## {timestamp}\n\n{content}\n"
+    
+    with open(memory_file, "a", encoding="utf-8") as f:
+        f.write(entry)
+    
+    return f"✅ Appended to {memory_file}"
+
+
 # ── Tool registry ──────────────────────────────────────────────────
 
 def _create_tool(name: str, description: str, parameters_schema: dict, code: str, toolscript: dict = None) -> str:
@@ -819,6 +1015,10 @@ BUILTIN_EXECUTORS = {
     "get_current_time": _get_current_time,
     "update_skillsheet": _update_skillsheet,
     "create_skill_doc": _create_skill_doc,
+    "load_skill": _load_skill,
+    "create_skill": _create_skill,
+    "edit_identity": _edit_identity,
+    "write_memory": _write_memory,
     "create_tool": _create_tool,
 }
 

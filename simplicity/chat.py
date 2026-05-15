@@ -117,9 +117,10 @@ class ChatSession:
         )
         self.tools = ToolRegistry(Path.home() / ".simplicity" / "tools")
 
-        # Ensure skillsheet exists
-        from simplicity.config import init_skillsheet
+        # Ensure skillsheet and identity files exist
+        from simplicity.config import init_skillsheet, init_identity_files
         init_skillsheet()
+        init_identity_files()
 
         # Conversation state
         self.messages: list[dict] = []
