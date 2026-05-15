@@ -5,13 +5,12 @@
 <p align="center">
   <img src="https://img.shields.io/github/stars/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=f781c0" alt="Stars">
   <img src="https://img.shields.io/github/languages/top/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=c9d1d9" alt="Python">
-  <img src="https://img.shields.io/github/license/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=3fb950" alt="MIT">
+  <img src="https://img.shields.io/github/license/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=3fb950&label=license" alt="MIT License">
   <img src="https://img.shields.io/badge/powered%20by-Pollinations.ai-f781c0?style=for-the-badge" alt="Pollinations.ai">
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/built%20by-Remi%20(OpenClaw%20AI)-f781c0?style=flat-square" alt="Built by Remi">
-  <img src="https://img.shields.io/badge/creator-Doxi%20(Aiden)-c9d1d9?style=flat-square" alt="Creator">
   <img src="https://img.shields.io/badge/tools-19-f781c0?style=flat-square" alt="19 Tools">
   <img src="https://img.shields.io/badge/open%20to-collaborators-3fb950?style=flat-square" alt="Open to Collaborators">
 </p>
