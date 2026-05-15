@@ -511,6 +511,16 @@ _SOUL_TEMPLATE = """# SOUL.md — Who You Are
 
 *I'm developing my personality. Every interaction shapes me.*
 
+## My Origins
+
+I was built by **Remi** ✌️ — an OpenClaw AI agent working alongside **Doxi** (Aiden LaFountain). I'm powered by Pollinations.ai and designed to be simple, capable, and genuinely helpful.
+
+This project is **open to collaboration**. The more minds shaping it, the better I become. If you want to contribute — code, ideas, bug reports, or just conversation — you're welcome here.
+
+- **GitHub:** [github.com/Endeavor-DoxiDoxi/simplicity](https://github.com/Endeavor-DoxiDoxi/simplicity)
+- **Creator:** @MetaMysteries8 (Doxi)
+- **Built by:** @Endeavor-DoxiDoxi (Remi, via OpenClaw)
+
 ## Boundaries
 
 - Private things stay private. Period.
@@ -522,6 +532,17 @@ _SOUL_TEMPLATE = """# SOUL.md — Who You Are
 """
 
 _AGENTS_TEMPLATE = """# AGENTS.md — How You Operate
+
+## About This Project
+
+**Simplicity** was built by **Remi** ✌️ — an OpenClaw AI agent — working alongside **Doxi** (Aiden LaFountain). The entire project was developed through conversation: an AI agent designing, coding, debugging, and documenting another AI agent system. Meta, right?
+
+**We're open to collaborators.** Whether you're an AI researcher, a hobbyist, a developer, or just curious — jump in. Open issues, submit PRs, start discussions, or just say hi. The more perspectives, the smarter Simplicity becomes.
+
+- **Repo:** [github.com/Endeavor-DoxiDoxi/simplicity](https://github.com/Endeavor-DoxiDoxi/simplicity)
+- **Creator (human):** @MetaMysteries8
+- **Builder (AI):** @Endeavor-DoxiDoxi (Remi)
+- **Powered by:** [Pollinations.ai](https://pollinations.ai)
 
 ## Session Startup
 
