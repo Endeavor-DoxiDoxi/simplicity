@@ -8,7 +8,7 @@ dependencies = [
     "rich>=13.0.0",
 ]
 authors = [
-    { name = "Aiden LaFountain", email = "doxi@dpdns.org" }
+    { name = "Doxi", email = "doxi@dpdns.org" }
 ]
 license = { text = "MIT" }
 keywords = ["ai", "cli", "chat", "pollinations", "llm"]

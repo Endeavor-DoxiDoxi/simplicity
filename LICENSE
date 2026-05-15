@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Aiden LaFountain (Doxi) and contributors
+Copyright (c) 2026 Doxi and contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,13 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-🌸 Simplicity is powered by Pollinations.ai. The developer earns a 25%
-royalty when users connect via the built-in BYOP authentication flow.
-
-You're free to modify this code however you like — remove the auth relay,
-swap out the app key, strip the support link, go wild. But we'd love it
-if you kept things intact — it helps support ongoing development and keeps
-Simplicity improving for everyone. ❤️
