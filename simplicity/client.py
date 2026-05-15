@@ -121,6 +121,8 @@ class SimplicityClient:
         max_tokens: int = 4096,
     ) -> Generator[dict, None, None]:
         """Stream a chat completion through the provider."""
+        # Sync model to provider in case it was changed via /model or config
+        self._provider.model = self.model
         yield from self._provider.chat_stream(
             messages=messages,
             tools=tools,
