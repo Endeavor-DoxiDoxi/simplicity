@@ -89,7 +89,7 @@ class _StreamingThinkFilter:
         for tag in self._TAG_STARTS:
             if tag.startswith(text):
                 return True
-        return True  # Just '<' alone is a potential start
+        return False
 
     def _could_be_closing_tag(self, text: str) -> bool:
         """Check if text starts with a prefix of any closing think tag."""
@@ -98,7 +98,7 @@ class _StreamingThinkFilter:
         for tag in self._CLOSE_TAG_STARTS:
             if tag.startswith(text):
                 return True
-        return True  # Just '</' alone is a potential start
+        return False
 
     def finalize(self) -> str:
         if not self.in_think and self.pending:
@@ -280,8 +280,7 @@ class ChatSession:
         full_content = ""
         tool_calls = []
         think_filter = _StreamingThinkFilter()
-        status = thinking()
-        status_started = False
+        first_content = True
 
         try:
             for chunk in self.client.chat_stream(
@@ -291,10 +290,9 @@ class ChatSession:
                 max_tokens=self.config.max_tokens,
             ):
                 if chunk["type"] == "content":
-                    # Start thinking indicator if not already started
-                    if not status_started:
-                        status.__enter__()
-                        status_started = True
+                    if first_content:
+                        console.print("[dim]🤔[/]", end=" ", highlight=False)
+                        first_content = False
                     raw = chunk["content"]
                     full_content += raw
                     # Filter think tags for display (handles chunk boundaries)
@@ -302,9 +300,9 @@ class ChatSession:
                     if display_text:
                         stream_token(display_text)
                 elif chunk["type"] == "tool_call":
-                    if status_started:
-                        status.__exit__(None, None, None)
-                        status_started = False
+                    if not first_content:
+                        console.print()  # end the thinking line
+                        first_content = True
                     tool_calls.append(
                         {
                             "id": chunk.get("id", ""),
@@ -321,8 +319,6 @@ class ChatSession:
                         tk = usage.get("total_tokens", "?")
                         debug(f"Tokens: {tk}")
 
-            if status_started:
-                status.__exit__(None, None, None)
             stream_done()
 
             # Final think-tag strip on complete content for storage
@@ -335,8 +331,6 @@ class ChatSession:
             return {"content": full_content, "tool_calls": tool_calls}
 
         except KeyboardInterrupt:
-            if status_started:
-                status.__exit__(None, None, None)
             console.print("\n[dim](Stopped)[/]")
             return None
 

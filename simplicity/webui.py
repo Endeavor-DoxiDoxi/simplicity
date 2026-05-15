@@ -144,11 +144,53 @@ function escapeHtml(text) {
   return d.innerHTML;
 }
 
+let thinkBuffer = '';  // accumulates across chunks for cross-chunk <think> matching
+
 function stripThinkTags(text) {
-  // Remove <think>...</think> blocks (tags + content) and orphaned tags
-  text = text.replace(/<\s*think(?:ing)?\s*>[\s\S]*?<\s*\/\s*think(?:ing)?\s*>/gi, '');
-  text = text.replace(/<\/?\s*think(?:ing)?\s*>/gi, '');
-  return text;
+  // Cross-chunk <think> tag filtering: buffer + state machine
+  let result = '';
+  let combined = thinkBuffer + text;
+  thinkBuffer = '';
+  let i = 0;
+  while (i < combined.length) {
+    // Look for opening <think> or <thinking> tag
+    let openMatch = combined.slice(i).match(/<\s*think(?:ing)?\s*>/i);
+    if (openMatch && openMatch.index !== undefined) {
+      result += combined.slice(i, i + openMatch.index);
+      i += openMatch.index + openMatch[0].length;
+      // Now look for closing tag, skip everything until </think> or </thinking>
+      let closeMatch = combined.slice(i).match(/<\s*\/\s*think(?:ing)?\s*>/i);
+      if (closeMatch && closeMatch.index !== undefined) {
+        i += closeMatch.index + closeMatch[0].length;
+      } else {
+        // No closing tag in this chunk — buffer from opening tag position
+        thinkBuffer = combined.slice(i - openMatch[0].length);
+        return result;
+      }
+    } else {
+      // No opening tag found. Check for partial opening tag at end
+      let partial = false;
+      for (let tag of ['<think>', '<thinking>', '< think>', '< thinking>']) {
+        for (let n = 1; n <= tag.length && n <= combined.length - i; n++) {
+          if (combined.slice(-n) === tag.slice(0, n)) {
+            partial = true;
+            break;
+          }
+        }
+        if (partial) break;
+      }
+      if (partial) {
+        result += combined.slice(i, -1);  // everything except last char(s) that form partial tag
+        thinkBuffer = combined.slice(-1);   // buffer last char(s)
+        return result;
+      }
+      result += combined.slice(i);
+      break;
+    }
+  }
+  // Strip any remaining orphaned tags
+  result = result.replace(/<\/?\s*think(?:ing)?\s*>/gi, '');
+  return result;
 }
 
 function simpleMarkdown(text) {

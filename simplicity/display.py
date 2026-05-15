@@ -128,9 +128,15 @@ def _render_with_code_blocks(text: str) -> Text:
             else:
                 result.append(part)
         else:
-            # Regular text — append plain text (Markdown renderables can't be appended to Text)
+            # Regular text — convert basic inline markdown to Rich markup
             if part.strip():
-                result.append(part)
+                text = part.strip()
+                # Convert **bold** → Rich bold, *italic* → italic, `code` → dim
+                text = re.sub(r'\*\*(.+?)\*\*', r'[bold]\1[/bold]', text)
+                text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'[italic]\1[/italic]', text)
+                text = re.sub(r'`([^`]+?)`', r'[dim]\1[/dim]', text)
+                result.append(Text.from_markup(text))
+                result.append("\n")
 
     return result
 
