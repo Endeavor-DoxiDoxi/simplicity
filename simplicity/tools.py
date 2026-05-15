@@ -100,7 +100,11 @@ BUILT_IN_TOOLS = [
         "type": "function",
         "function": {
             "name": "write_file",
-            "description": "Write content to a file. Creates the file if it doesn't exist, overwrites if it does.",
+            "description": ("Write content to a file. Files are written inside the current "
+                "working directory (workspace) by default. Writing outside the workspace "
+                "is allowed but will be flagged with a warning — only do this when "
+                "specifically asked or when necessary for the task. "
+                "Creates parent directories as needed."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -201,10 +205,19 @@ def _read_file(path: str, offset: int = 1, limit: int = 200) -> str:
 
 def _write_file(path: str, content: str) -> str:
     p = Path(path).expanduser().resolve()
+    workspace = Path.cwd().resolve()
+    # Check if target is outside workspace
+    try:
+        is_in_workspace = p == workspace or p.relative_to(workspace)
+    except ValueError:
+        is_in_workspace = False
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(content, encoding="utf-8")
-        return f"Successfully wrote {len(content)} bytes to {p}"
+        msg = f"Successfully wrote {len(content)} bytes to {p}"
+        if not is_in_workspace:
+            msg = "⚠️  OUTSIDE WORKSPACE ⚠️\n" + msg + f"\n(workspace is: {workspace})"
+        return msg
     except Exception as e:
         return f"Error writing file: {e}"
 
