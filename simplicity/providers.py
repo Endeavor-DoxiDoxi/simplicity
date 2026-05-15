@@ -129,7 +129,7 @@ class PollinationsProvider(BaseProvider):
     def fetch_balance(self) -> dict:
         req = urllib.request.Request(
             f"{POLLINATIONS_API}/account/balance",
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": "Simplicity/1.0"},
         )
         with urllib.request.urlopen(req, timeout=10) as resp:
             return json.loads(resp.read().decode("utf-8"))
@@ -137,7 +137,7 @@ class PollinationsProvider(BaseProvider):
     def fetch_usage(self, days: int = 30) -> dict:
         req = urllib.request.Request(
             f"{POLLINATIONS_API}/account/usage?days={days}",
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers={"Authorization": f"Bearer {self.api_key}", "User-Agent": "Simplicity/1.0"},
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
             return json.loads(resp.read().decode("utf-8"))

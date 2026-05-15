@@ -35,9 +35,9 @@ BUILT_IN_TOOLS = [
             "description": (
                 "Create a new custom tool that extends your capabilities. "
                 "The tool is saved as a Python file and becomes immediately available. "
-                "Use this when you need a capability that doesn't exist yet — "
-                "like accessing a specific API, performing specialized calculations, "
-                "or integrating with an external service. "
+                "Use this when you need a capability that doesn't exist yet. "
+                "Optional: include a 'toolscript' to create a folder-based tool with "
+                "prerequisites (dependencies to install), documentation, and helper scripts. "
                 "REQUIRES USER APPROVAL before the tool is created."
             ),
             "parameters": {
@@ -69,6 +69,27 @@ BUILT_IN_TOOLS = [
                             "Return a string result. Use stdlib modules only (urllib, json, etc). "
                             "Handle errors gracefully — return error messages as strings, don't raise."
                         ),
+                    },
+                    "toolscript": {
+                        "type": "object",
+                        "description": ("Optional. Create a folder-based toolscript with prerequisites "
+                            "and documentation. Use this when the tool needs external dependencies "
+                            "(like yt-dlp, ffmpeg) or helper scripts."),
+                        "properties": {
+                            "prerequisites": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Shell commands to install dependencies (e.g. ['pip install yt-dlp', 'sudo apt install ffmpeg'])"
+                            },
+                            "readme": {
+                                "type": "string",
+                                "description": "Markdown documentation explaining how the tool works and how to use it"
+                            },
+                            "scripts": {
+                                "type": "object",
+                                "description": "Additional script files (filename → content) that the tool needs"
+                            },
+                        },
                     },
                 },
                 "required": ["name", "description", "parameters_schema", "code"],
@@ -169,7 +190,9 @@ BUILT_IN_TOOLS = [
         "type": "function",
         "function": {
             "name": "run_command",
-            "description": "Execute a shell command and return the output. Use with caution.",
+            "description": ("Execute a shell command and return the output. "
+                "Set detach=True for long-running commands (downloads, installs, builds) "
+                "to run in the background — then use check_command to monitor progress."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -181,8 +204,31 @@ BUILT_IN_TOOLS = [
                         "type": "string",
                         "description": "Working directory for the command (optional)",
                     },
+                    "detach": {
+                        "type": "boolean",
+                        "description": "Run command in background. Returns a process ID for check_command.",
+                    },
                 },
                 "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_command",
+            "description": ("Check the status and live output of a background command "
+                "started with run_command(detach=True). Returns whether the command "
+                "is still running, its current output, and exit code if finished."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "process_id": {
+                        "type": "string",
+                        "description": "The process ID returned by run_command(detach=True)",
+                    },
+                },
+                "required": ["process_id"],
             },
         },
     },
@@ -332,8 +378,21 @@ def _list_directory(path: str = ".", show_all: bool = False) -> str:
         return f"Error listing directory: {e}"
 
 
-def _run_command(command: str, workdir: str = ".") -> str:
-    """Execute a shell command. Requires user approval for safety."""
+def _run_command(command: str, workdir: str = ".", detach: bool = False) -> str:
+    """Execute a shell command. Requires user approval for safety.
+    
+    When detach=True, runs the command in the background and returns a process ID
+    that can be checked later with check_command. Useful for long-running tasks
+    like downloads, installations, or builds.
+    """
+    if detach:
+        from simplicity.tools import _ProcessManager
+        pid = _ProcessManager.start(command, workdir)
+        return (
+            f"Started background process: {pid}\n"
+            f"Command: {command}\n"
+            f"Use check_command(id='{pid}') to check progress."
+        )
     try:
         result = subprocess.run(
             command,
@@ -463,11 +522,93 @@ def _get_current_time() -> str:
     )
 
 
+# ── Process tracking for background commands ────────────────────
+
+class _ProcessManager:
+    """Tracks background processes for the check_command tool."""
+
+    _dir = Path.home() / ".simplicity" / "processes"
+
+    @classmethod
+    def _ensure_dir(cls):
+        cls._dir.mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def start(cls, command: str, workdir: str) -> str:
+        """Start a background process and return its ID."""
+        import uuid
+        import threading
+        from datetime import datetime
+        cls._ensure_dir()
+        pid = uuid.uuid4().hex[:8]
+        state_file = cls._dir / f"{pid}.json"
+
+        state = {
+            "id": pid, "command": command, "workdir": workdir,
+            "status": "running", "started": datetime.now().isoformat(),
+            "output": "", "exit_code": None
+        }
+        state_file.write_text(json.dumps(state))
+
+        def _run():
+            try:
+                proc = subprocess.Popen(
+                    command, shell=True, cwd=workdir,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True
+                )
+                state["pid"] = proc.pid
+                for line in proc.stdout:
+                    state["output"] += line
+                    if len(state["output"]) > 10240:
+                        state["output"] = "...(earlier output truncated)\n" + state["output"][-8192:]
+                    state_file.write_text(json.dumps(state))
+                proc.wait()
+                state["exit_code"] = proc.returncode
+                state["status"] = "completed" if proc.returncode == 0 else "error"
+            except Exception as e:
+                state["status"] = "error"
+                state["output"] += f"\n[Process error: {e}]"
+            state_file.write_text(json.dumps(state))
+
+        threading.Thread(target=_run, daemon=True).start()
+        return pid
+
+    @classmethod
+    def check(cls, pid: str) -> str:
+        """Check the status and output of a background process."""
+        cls._ensure_dir()
+        state_file = cls._dir / f"{pid}.json"
+        if not state_file.exists():
+            return f"No process found with ID: {pid}"
+        state = json.loads(state_file.read_text())
+        status_emoji = {"running": "🔄", "completed": "✅", "error": "❌"}
+        emoji = status_emoji.get(state["status"], "❓")
+        lines = [
+            f"{emoji} Process {pid}: {state['status'].upper()}",
+            f"   Command: {state['command']}",
+            f"   Started: {state['started']}",
+        ]
+        if state.get("pid"):
+            lines.append(f"   PID: {state['pid']}")
+        if state.get("exit_code") is not None:
+            lines.append(f"   Exit code: {state['exit_code']}")
+        if state["output"]:
+            lines.append(f"\n--- output ---\n{state['output'].rstrip()}\n--- end ---")
+        return "\n".join(lines)
+
+
+def _check_command(process_id: str) -> str:
+    """Check the status and output of a background command."""
+    return _ProcessManager.check(process_id)
+
+
 # ── Tool registry ──────────────────────────────────────────────────
 
-def _create_tool(name: str, description: str, parameters_schema: dict, code: str) -> str:
-    """Create a new custom tool by writing a Python file to the tools directory."""
+def _create_tool(name: str, description: str, parameters_schema: dict, code: str, toolscript: dict = None) -> str:
+    """Create a new custom tool. Supports simple tools and folder-based toolscripts."""
     import re
+    import json as _json
     
     # Validate name
     if not re.match(r'^[a-z][a-z0-9_]*$', name):
@@ -475,10 +616,6 @@ def _create_tool(name: str, description: str, parameters_schema: dict, code: str
     
     tools_dir = Path.home() / ".simplicity" / "tools"
     tools_dir.mkdir(parents=True, exist_ok=True)
-    
-    tool_path = tools_dir / f"{name}.py"
-    if tool_path.exists():
-        return f"Error: Tool '{name}' already exists at {tool_path}. Use a different name or delete the existing one."
     
     # Build the tool definition
     tool_def = {
@@ -490,8 +627,6 @@ def _create_tool(name: str, description: str, parameters_schema: dict, code: str
         },
     }
     
-    # Generate the tool file
-    import json as _json
     tool_file = f'''"""Custom tool: {name} — {description}"""
 
 import json
@@ -500,6 +635,63 @@ TOOL_DEFINITION = {_json.dumps(tool_def, indent=2)}
 
 {code}
 '''
+
+    # ── Toolscript mode: folder-based tool with prerequisites ──
+    if toolscript and isinstance(toolscript, dict):
+        tool_dir = tools_dir / name
+        if tool_dir.exists():
+            return f"Error: Tool folder '{name}' already exists at {tool_dir}."
+        tool_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Write main tool.py
+        (tool_dir / "tool.py").write_text(tool_file, encoding="utf-8")
+        
+        # Write README.md
+        readme = toolscript.get("readme", "")
+        if readme:
+            (tool_dir / "README.md").write_text(readme, encoding="utf-8")
+        
+        # Write additional scripts
+        scripts = toolscript.get("scripts", {})
+        if scripts:
+            scripts_dir = tool_dir / "scripts"
+            scripts_dir.mkdir(exist_ok=True)
+            for script_name, script_content in scripts.items():
+                safe_name = Path(script_name).name  # prevent path traversal
+                (scripts_dir / safe_name).write_text(script_content, encoding="utf-8")
+        
+        # Generate and write installer
+        prerequisites = toolscript.get("prerequisites", [])
+        if prerequisites:
+            is_windows = sys.platform == "win32"
+            if is_windows:
+                installer = "@echo off\nREM Installer for {name}\n\n".format(name=name)
+                for prereq in prerequisites:
+                    installer += f"{prereq}\n"
+                installer += f"\necho ✅ {name} prerequisites installed!\npause\n"
+                (tool_dir / "install.bat").write_text(installer, encoding="utf-8")
+            else:
+                installer = "#!/bin/bash\n# Installer for {name}\nset -e\n\n".format(name=name)
+                for prereq in prerequisites:
+                    installer += f"{prereq}\n"
+                installer += f"\necho '✅ {name} prerequisites installed!'\n"
+                (tool_dir / "install.sh").write_text(installer, encoding="utf-8")
+                # Make executable
+                (tool_dir / "install.sh").chmod(0o755)
+        
+        return (
+            f"✅ Toolscript '{name}' created at {tool_dir}\n"
+            f"   Files: tool.py"
+            + (f", README.md" if readme else "")
+            + (f", {len(scripts)} script(s)" if scripts else "")
+            + (f", installer" if prerequisites else "")
+            + f"\n   Description: {description}"
+        )
+    
+    # ── Simple mode: single .py file ──
+    tool_path = tools_dir / f"{name}.py"
+    if tool_path.exists():
+        return f"Error: Tool '{name}' already exists at {tool_path}. Use a different name or delete the existing one."
     
     try:
         tool_path.write_text(tool_file, encoding="utf-8")
@@ -518,6 +710,7 @@ BUILTIN_EXECUTORS = {
     "delete_file": _delete_file,
     "list_directory": _list_directory,
     "run_command": _run_command,
+    "check_command": _check_command,
     "web_search": _web_search,
     "web_fetch": _web_fetch,
     "get_current_time": _get_current_time,

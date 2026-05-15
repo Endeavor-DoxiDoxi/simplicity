@@ -173,8 +173,11 @@ class ChatSession:
         console.print("\n[dim]Goodbye! ✌️[/]")
 
     def _get_input(self) -> Optional[str]:
-        """Get user input with a nice prompt."""
-        return console.input("[bold cyan]You ›[/] ")
+        """Get user input with a nice prompt. Returns None on EOF."""
+        try:
+            return console.input("[bold cyan]You ›[/] ")
+        except (EOFError, KeyboardInterrupt):
+            return None
 
     def _handle_command(self, cmd: str) -> bool:
         """Handle a slash command. Returns False if should exit."""
