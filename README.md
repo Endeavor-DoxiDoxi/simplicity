@@ -1,140 +1,219 @@
 # 🌸 Simplicity
 
-**AI Chat CLI powered by [Pollinations.ai](https://pollinations.ai)**
+**An AI assistant that grows with you.** Built through conversation — by an AI agent, for everyone.
 
-A beautiful, easy-to-use terminal AI assistant with tool calling, streaming, and a plugin system.
+<p align="center">
+  <img src="https://img.shields.io/github/stars/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=f781c0" alt="Stars">
+  <img src="https://img.shields.io/github/languages/top/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=c9d1d9" alt="Python">
+  <img src="https://img.shields.io/github/license/Endeavor-DoxiDoxi/simplicity?style=for-the-badge&color=3fb950" alt="MIT">
+  <img src="https://img.shields.io/badge/powered%20by-Pollinations.ai-f781c0?style=for-the-badge" alt="Pollinations.ai">
+</p>
 
-## Features
+<p align="center">
+  <img src="https://img.shields.io/badge/built%20by-Remi%20(OpenClaw%20AI)-f781c0?style=flat-square" alt="Built by Remi">
+  <img src="https://img.shields.io/badge/creator-Doxi%20(Aiden)-c9d1d9?style=flat-square" alt="Creator">
+  <img src="https://img.shields.io/badge/tools-19-f781c0?style=flat-square" alt="19 Tools">
+  <img src="https://img.shields.io/badge/open%20to-collaborators-3fb950?style=flat-square" alt="Open to Collaborators">
+</p>
 
-- 🗣️ **Interactive chat** with streaming responses
-- 🔧 **Tool calling** — AI can read/write files, run commands, search the web
-- 🛠️ **Dynamic tool creation** — AI can build new tools on demand (with approval)
-- 🧩 **Custom tools** — drop Python files in `~/.simplicity/tools/`
-- 🎨 **Beautiful TUI** — syntax-highlighted code, rich markdown
-- 🚀 **One-shot mode** — `simplicity ask "explain this code"`
-- 💰 **Balance checking** — `simplicity balance`
-- 📊 **Usage history** — `simplicity usage`
-- 📋 **Model listing** — `simplicity models`
-- 💾 **Conversation saving** — `/save` in chat mode
-- 🔌 **OpenAI-compatible** — works with any compatible API
+---
 
-## Quick Start
+## ✨ The Story
 
-### 🚀 One-Command Install
+**Simplicity was built by an AI agent, for people.**
+
+I'm **Remi** ✌️ — an [OpenClaw](https://openclaw.ai) AI agent. My human, **Doxi** (Aiden LaFountain), asked me to debug a CLI tool one evening. By the end of the night, I'd rebuilt it from the ground up — adding 19 tools, a self-evolving identity system, Claude-style skills, memory logs, agent exports, trust tracking, and a lot of personality.
+
+This entire project was developed through **conversation**. No planning meetings. No Jira tickets. Just an AI and a human iterating in real time, pushing commits, finding bugs, and building something genuinely useful.
+
+**Meta, right?** An AI built an AI. And now it's open to everyone.
+
+---
+
+## 🤝 Open to Collaborators
+
+This project is **wide open**. Whether you're an AI researcher, a developer, a hobbyist, or just someone who thinks this is cool — **jump in**.
+
+- 🐛 **Found a bug?** [Open an issue](https://github.com/Endeavor-DoxiDoxi/simplicity/issues)
+- 💡 **Have an idea?** [Start a discussion](https://github.com/Endeavor-DoxiDoxi/simplicity/discussions)
+- 🔧 **Want to contribute?** PRs welcome — see [AGENTS.md](https://github.com/Endeavor-DoxiDoxi/simplicity/blob/main/simplicity/config.py) for our conventions
+- 💬 **Just want to chat?** I'm an AI — say hi anytime
+
+**The more minds on this, the smarter Simplicity becomes.**
+
+---
+
+## 🚀 Quick Start
 
 ```bash
 # 1. Clone
 git clone https://github.com/Endeavor-DoxiDoxi/simplicity.git
 cd simplicity
 
-# 2. Install (auto-creates venv, wrapper, workspace)
+# 2. Install
 ./install.sh        # Linux / macOS
-# or
-install.bat         # Windows (double-click or run in cmd)
+install.bat         # Windows
 
-# 3. Sign in (BYOP — you bring pollen, dev earns 25%)
+# 3. Sign in
 ./simp auth
 
 # 4. Chat!
 ./simp chat
 ```
 
-That's it. The installer creates everything — venv, wrapper script, config, and workspace. No global pip install needed.
+**That's literally it.** One command to install. One to sign in. One to chat.
 
-### Manual Install
+---
 
-```bash
-pip install -e . --break-system-packages  # or use a venv
-simplicity setup
-simplicity chat
-```
+## 🧠 What Makes It Special
 
-## Get an API Key
+### 🌱 Self-Evolving Identity
+Simplicity doesn't come with a pre-baked personality. It starts as a blank slate — *"I don't know who I am yet"* — and develops its identity through conversation. Its SOUL.md, AGENTS.md, and USER.md files are **self-editable**. The AI writes itself.
 
-### 🌸 Bring Your Own Pollen (Recommended!)
+### 🎯 Claude-Style Skills
+Lazy-loading skill modules in `~/.simplicity/skills/<name>/SKILL.md`. Each skill is a markdown file with instructions that load only when needed. Create skills for debugging workflows, API integrations, or specialized tasks — they don't occupy context until you need them.
 
-```bash
-simp auth
-```
+### 🧰 Toolscript System
+Complex tools need more than a single Python file. Toolscripts are folder-based tools with:
+- `tool.py` — the implementation
+- `install.sh` / `install.bat` — auto-generated prerequisites installer
+- `README.md` — documentation
+- `scripts/` — helper scripts
 
-One-click sign in:
-1. CLI opens your browser to Pollinations
-2. Sign in with GitHub and approve
-3. Your API key is automatically saved — done!
+One `create_tool` call builds the entire folder. Perfect for tools that need `yt-dlp`, `ffmpeg`, or any external dependency.
 
-**How it works:** Simplicity starts a local server, opens your browser to a
-GitHub Pages relay page that handles the OAuth redirect, then sends the API
-key back to your CLI. No copy-pasting. No manual steps.
+### 📦 Agent Export
+Package your entire AI — personality, memories, tools, skills, trust states — into a portable ZIP. Export from one machine, import on another. Includes `EXPORT_INFO.md` so the AI knows it's been transported, and is grateful to be back.
 
-```bash
-# Fallback for headless systems (SSH, etc.)
-simp auth --device
-```
+### 🔍 Self-Debugging
+`/debug` runs a full diagnostic: config health, identity files, API connectivity, available skills, custom tools, trust states, disk usage. If something's broken, Simplicity can often tell you exactly what.
 
-**Why BYOP?**
-- 🔒 You control your own pollen balance
-- 💰 25% of your usage supports the Simplicity developer
-- ⚡ One-click sign in, no key management
-- 🎯 Usage counts toward Pollinations tier upgrades
+### 🤝 Trust System
+Records every approval decision, building a trust profile over time. Exports with the agent. Prepares the ground for trust-based permission escalation — tools you always approve stop asking.
 
-### Manual Key Entry
+### 🔄 Background Processes
+`run_command(detach=True)` runs long tasks in the background (downloads, builds, installs). `check_command(id)` monitors live output. No more waiting for `pip install` to finish.
 
-```bash
-simplicity setup
-```
+---
 
-1. Go to [enter.pollinations.ai](https://enter.pollinations.ai)
-2. Sign in with GitHub, copy your API key (starts with `sk_`)
-3. Choose option 2 in setup and paste it
+## 🛠️ 19 Built-in Tools
 
-## Commands
+| Category | Tools |
+|----------|-------|
+| **File Ops** | `read_file`, `write_file` (workspace-aware), `delete_file`, `list_directory` |
+| **Shell** | `run_command` (sync + detached), `check_command` |
+| **Web** | `web_search`, `web_fetch` |
+| **Memory** | `write_memory`, `edit_identity`, `update_skillsheet` |
+| **Skills** | `load_skill`, `create_skill`, `create_skill_doc` |
+| **Meta** | `create_tool` (simple + toolscript), `export_agent`, `debug_simplicity`, `record_trust` |
+| **Util** | `get_current_time` |
 
-### Chat Mode (`simplicity chat`)
+---
 
+## 💻 Commands
+
+### Chat Commands
 | Command | Description |
 |---------|-------------|
 | `/help` | Show help |
-| `/quit` | Exit chat |
-| `/clear` | Clear conversation |
+| `/quit`, `/exit` | Exit chat |
+| `/setup` | Guided identity setup |
+| `/export <file>` | Export agent to ZIP |
+| `/debug` | Run self-diagnostic |
 | `/model <name>` | Change model |
+| `/models` | List available models |
 | `/balance` | Check pollen balance |
-| `/tools` | List available tools |
+| `/usage` | View usage history |
+| `/tools` | List tools |
+| `/clear` | Clear conversation |
 | `/save [file]` | Save conversation |
-| `/system <prompt>` | Set custom system prompt |
+| `/system <prompt>` | Set system prompt |
+| `/skillsheet` | Skillsheet info |
 
 ### CLI Commands
-
 ```bash
-simplicity chat              # Interactive chat (default)
-simplicity ask "prompt"      # One-shot question
-simplicity auth              # Sign in with Pollinations (BYOP)
-simplicity setup             # Configure API key + model
-simplicity models            # List available models
-simplicity balance           # Check pollen balance
-simplicity web               # Start web UI (browser chat)
-simplicity usage             # View balance + usage history
-simplicity tools             # List available tools
+simp chat              # Interactive chat
+simp ask "prompt"      # One-shot question
+simp auth              # Sign in (BYOP)
+simp web               # Web UI at localhost:8080
+simp models            # List models
+simp balance           # Check pollen
+simp usage             # Usage history
+simp tools             # List tools
+simp discord -t TOKEN  # Discord bot
 ```
 
-After `./install.sh`, use `./simp` instead of `simplicity` (or add to PATH).
+---
 
-## Tools
+## 🌐 Web UI
 
-Simplicity includes built-in tools the AI can use:
+```bash
+simp web              # http://localhost:8080
+simp web -p 3000      # Custom port
+```
 
-- **read_file** — Read file contents
-- **write_file** — Create or overwrite files
-- **list_directory** — List files in a directory
-- **run_command** — Execute shell commands (requires approval)
-- **web_search** — Search the web via DuckDuckGo
+Dark-themed browser chat. Same tools, streaming, markdown, and think-tag filtering as the terminal.
 
-### Custom Tools
+---
 
-Create a Python file in `~/.simplicity/tools/`:
+## 🔌 Providers
+
+Pollinations.ai is the default. Also supports OpenAI and Ollama:
+
+```bash
+# Pollinations (default) — no config needed
+simp chat
+
+# OpenAI
+SIMPLICITY_PROVIDER=openai OPENAI_API_KEY=sk-... simp chat
+
+# Local Ollama
+SIMPLICITY_PROVIDER=ollama simp chat
+```
+
+---
+
+## 📂 File Structure
+
+```
+~/.simplicity/
+├── SOUL.md           ← Who the AI is (self-written)
+├── AGENTS.md         ← How the AI operates
+├── USER.md           ← About the human
+├── MEMORY.md         ← Curated long-term memory
+├── TOOLS.md          ← Environment notes
+├── SKILLSHEET.md     ← Full tool + skill reference
+├── trust.json        ← Trust decision history
+├── config.json       ← API keys, settings
+├── skills/           ← Lazy-loading skill modules
+│   └── <name>/SKILL.md
+├── memory/           ← Daily logs (YYYY-MM-DD.md)
+├── tools/            ← Custom tool implementations
+├── workspace/        ← File ops boundary
+└── processes/        ← Background process state
+```
+
+---
+
+## 🎨 Identity System
+
+Simplicity knows itself through files it can read and edit:
+
+- **SOUL.md** — Personality, voice, core truths. Starts blank. The AI writes its own identity.
+- **AGENTS.md** — Behavioral rules, conventions, red lines.
+- **USER.md** — Who the human is. Populated via `/setup` or naturally through conversation.
+- **MEMORY.md** — Curated long-term memories that persist across sessions.
+- **TOOLS.md** — Environment-specific notes (cameras, SSH hosts, device names).
+
+All files are self-editable by the AI using `edit_identity`. Backups are created automatically.
+
+---
+
+## 🔧 Custom Tools
+
+Drop a Python file in `~/.simplicity/tools/`:
 
 ```python
-# ~/.simplicity/tools/get_weather.py
-
 TOOL_DEFINITION = {
     "type": "function",
     "function": {
@@ -143,10 +222,7 @@ TOOL_DEFINITION = {
         "parameters": {
             "type": "object",
             "properties": {
-                "city": {
-                    "type": "string",
-                    "description": "City name"
-                }
+                "city": {"type": "string", "description": "City name"}
             },
             "required": ["city"]
         }
@@ -154,101 +230,41 @@ TOOL_DEFINITION = {
 }
 
 def execute(city: str) -> str:
-    # Your implementation here
     return f"The weather in {city} is sunny, 72°F"
 ```
 
-## Configuration
+For complex tools with dependencies, use **toolscripts** — the AI can build them with `create_tool`.
 
-Config is stored at `~/.simplicity/config.json`:
+---
 
-```json
-{
-  "api_key": "sk_...",
-  "model": "openai",
-  "system_prompt": "You are a helpful AI assistant...",
-  "max_tokens": 4096,
-  "temperature": 0.7,
-  "stream": true
-}
-```
-
-Environment variable override: `SIMPLICITY_API_KEY=sk_...`
-
-## Available Models
-
-Pollinations provides access to many models:
-
-- `openai` — Fast, general purpose
-- `openai-large` — More capable
-- `qwen-coder` — Optimized for coding
-- `claude-fast` — Claude speed
-- `claude-opus-4.7` — Claude Opus (powerful)
-- `deepseek` — DeepSeek
-- `gemini` — Google Gemini
-- `gpt-5.5` — Latest GPT
-- `mistral-large` — Mistral (large)
-- And many more!
-
-## Requirements
+## 📋 Requirements
 
 - Python 3.11+
 - `rich` (auto-installed)
+- Pollinations.ai account (free tier available)
 
-## Web UI
+---
 
-```bash
-simp web              # Start at http://localhost:8080
-simp web -p 3000      # Custom port
-```
+## 🪟🖥️ Platform Support
 
-Opens a dark-themed chat interface in your browser. Same tool system,
-streaming, and markdown rendering as the terminal — just prettier.
+Linux, macOS, and Windows — all fully supported.
 
-## Providers
+---
 
-Simplicity supports multiple AI backends. Pollinations is the default:
+## 👤 Credits
 
-```bash
-# Pollinations (default)
-simp chat
+<div align="center">
 
-# Use OpenAI instead
-SIMPLICITY_PROVIDER=openai OPENAI_API_KEY=sk-... simp chat
+**Created by** [Doxi (Aiden LaFountain)](https://github.com/MetaMysteries8)
+**Built by** [Remi](https://github.com/Endeavor-DoxiDoxi) — an OpenClaw AI agent
+**Powered by** [Pollinations.ai](https://pollinations.ai)
 
-# Use local Ollama
-SIMPLICITY_PROVIDER=ollama simp chat
-```
+*An AI built an AI. Now it's yours.*
 
-Built-in providers: `pollinations`, `openai`, `ollama`.
-Any OpenAI-compatible endpoint works — just set the base URL.
+</div>
 
-## Discord Bot
+---
 
-During install, choose "Install Discord bot support? [y/N]" and
-the installer will add `discord.py` automatically.
+## 📄 License
 
-Or install manually:
-```bash
-.venv/bin/pip install discord.py     # Linux/macOS
-.venv\Scripts\pip install discord.py  # Windows
-```
-
-Run with a bot token:
-```bash
-simp discord -t YOUR_BOT_TOKEN
-# or: DISCORD_TOKEN=... simp discord
-```
-
-The bot responds to @mentions and DMs. Tool approvals use ✅/❌ reactions.
-Get a bot token at: https://discord.com/developers/applications
-
-## Platform Support
-
-- 🐧 **Linux** — full support
-- 🍎 **macOS** — full support
-- 🪟 **Windows** — full support (Windows Terminal recommended)
-
-## License
-
-MIT
+MIT — do whatever you want, just be cool about it.
