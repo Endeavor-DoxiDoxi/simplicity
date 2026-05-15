@@ -2,9 +2,13 @@
 
 Built-in tools:
   - read_file: Read file contents
-  - write_file: Create or overwrite a file
+  - write_file: Create or overwrite a file (workspace-aware)
+  - delete_file: Delete a file (requires approval)
   - list_directory: List files in a directory
   - run_command: Execute a shell command
+  - web_search: Search the web for information
+  - web_fetch: Fetch and extract text from a URL
+  - get_current_time: Get current date and time
 
 Custom tools: drop Python files in ~/.simplicity/tools/
 Each tool file must expose:
@@ -133,8 +137,31 @@ BUILT_IN_TOOLS = [
                         "type": "string",
                         "description": "Directory path to list (default: current directory)",
                     },
+                    "show_all": {
+                        "type": "boolean",
+                        "description": "Include hidden files (starting with .). Default: false",
+                    },
                 },
                 "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delete_file",
+            "description": ("Delete a file. REQUIRES USER APPROVAL. "
+                "Only use when explicitly asked to delete something. "
+                "Be careful — this cannot be undone."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to delete",
+                    },
+                },
+                "required": ["path"],
             },
         },
     },
@@ -163,7 +190,9 @@ BUILT_IN_TOOLS = [
         "type": "function",
         "function": {
             "name": "web_search",
-            "description": "Search the web for information. Returns search results.",
+            "description": ("Search the web for information and return results with "
+                "titles, URLs, and snippets. Use this to find current information, "
+                "documentation, or answer questions about recent events."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -171,8 +200,44 @@ BUILT_IN_TOOLS = [
                         "type": "string",
                         "description": "The search query",
                     },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of results to return (default 5, max 10)",
+                    },
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "web_fetch",
+            "description": ("Fetch and extract readable text content from a URL. "
+                "Use this to read documentation, articles, API responses, or any web page. "
+                "Returns the extracted text (max ~50KB). Supports HTML to text conversion."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The URL to fetch (must be HTTP or HTTPS)",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_current_time",
+            "description": ("Get the current date and time. Useful when you need to know "
+                "what day it is or the exact current time for time-sensitive tasks."),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
             },
         },
     },
@@ -222,7 +287,21 @@ def _write_file(path: str, content: str) -> str:
         return f"Error writing file: {e}"
 
 
-def _list_directory(path: str = ".") -> str:
+def _delete_file(path: str) -> str:
+    """Delete a file. Requires user approval."""
+    p = Path(path).expanduser().resolve()
+    if not p.exists():
+        return f"Error: File not found: {path}"
+    if p.is_dir():
+        return f"Error: Cannot delete directory with delete_file: {path}"
+    try:
+        p.unlink()
+        return f"Deleted: {p}"
+    except Exception as e:
+        return f"Error deleting file: {e}"
+
+
+def _list_directory(path: str = ".", show_all: bool = False) -> str:
     p = Path(path).expanduser().resolve()
     if not p.exists():
         return f"Error: Directory not found: {path}"
@@ -232,6 +311,9 @@ def _list_directory(path: str = ".") -> str:
         items = sorted(p.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
         lines = []
         for item in items:
+            # Skip hidden files unless show_all is True
+            if not show_all and item.name.startswith('.'):
+                continue
             if item.is_dir():
                 lines.append(f"📁 {item.name}/")
             else:
@@ -273,12 +355,13 @@ def _run_command(command: str, workdir: str = ".") -> str:
         return f"Error running command: {e}"
 
 
-def _web_search(query: str) -> str:
-    """Perform a web search and return results."""
-    # Use DuckDuckGo HTML search (no API key needed)
+def _web_search(query: str, count: int = 5) -> str:
+    """Perform a web search using DuckDuckGo HTML."""
     import urllib.request
+    import urllib.parse
     import html as html_module
 
+    count = min(max(count, 1), 10)
     encoded = urllib.parse.quote(query)
     url = f"https://html.duckduckgo.com/html/?q={encoded}"
 
@@ -289,26 +372,95 @@ def _web_search(query: str) -> str:
     except Exception as e:
         return f"Search failed: {e}"
 
-    # Basic extraction of result snippets
+    # Extract result titles, URLs, and snippets
     results = []
     import re
-    # Extract result titles and snippets
+    # Each result is a 'result__body' div with title link and snippet
     snippets = re.findall(
-        r'<a[^>]*class="result__a"[^>]*>(.*?)</a>.*?<a[^>]*class="result__snippet"[^>]*>(.*?)</a>',
+        r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>.*?'
+        r'<a[^>]*class="result__snippet"[^>]*>(.*?)</a>',
         html,
         re.DOTALL,
     )
-    for title, snippet in snippets[:8]:
+    for url, title, snippet in snippets[:count]:
         title = re.sub(r"<[^>]+>", "", title).strip()
         snippet = re.sub(r"<[^>]+>", "", snippet).strip()
         title = html_module.unescape(title)
         snippet = html_module.unescape(snippet)
+        url = html_module.unescape(url)
         if title:
-            results.append(f"• {title}\n  {snippet}")
+            results.append(f"**{title}**\n  {snippet}\n  URL: {url}")
 
     if not results:
         return f"No results found for: {query}"
     return "\n\n".join(results)
+
+
+def _web_fetch(url: str) -> str:
+    """Fetch and extract text content from a URL."""
+    import urllib.request
+    import urllib.error
+
+    if not url.startswith(("http://", "https://")):
+        return f"Error: URL must start with http:// or https:// (got: {url})"
+
+    req = urllib.request.Request(url, headers={"User-Agent": "Simplicity/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            # Check content type
+            content_type = resp.headers.get("Content-Type", "")
+            raw = resp.read()
+            # Limit to ~50KB
+            if len(raw) > 50_000:
+                raw = raw[:50_000]
+            text = raw.decode("utf-8", errors="replace")
+
+            # If HTML, try to extract readable text
+            if "text/html" in content_type or text.strip().startswith(("<!DOCTYPE", "<html", "<HTML")):
+                return _extract_text_from_html(text, url)
+            else:
+                return text[:10_000]
+    except urllib.error.HTTPError as e:
+        return f"HTTP {e.code}: {e.reason} for {url}"
+    except urllib.error.URLError as e:
+        return f"Connection error: {e.reason} for {url}"
+    except Exception as e:
+        return f"Fetch error: {e} for {url}"
+
+
+def _extract_text_from_html(html: str, url: str = "") -> str:
+    """Extract readable text from HTML, stripping tags and scripts."""
+    import re
+    # Remove script and style sections
+    text = re.sub(r"<(script|style|nav|header|footer|iframe)[^>]*>[\s\S]*?</\1>", " ", html, flags=re.IGNORECASE)
+    # Remove HTML comments
+    text = re.sub(r"<!--[\s\S]*?-->", "", text)
+    # Remove remaining HTML tags
+    text = re.sub(r"<[^>]+>", " ", text)
+    # Decode HTML entities
+    import html as html_module
+    text = html_module.unescape(text)
+    # Collapse whitespace
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    # Trim and limit
+    text = text.strip()
+    if len(text) > 10_000:
+        text = text[:10_000] + "\n... (truncated)"
+    if not text:
+        return f"(No readable text content extracted from {url})"
+    return f"Content from {url}:\n\n{text}"
+
+
+def _get_current_time() -> str:
+    """Return the current date and time."""
+    from datetime import datetime
+    now = datetime.now()
+    return (
+        f"Current date: {now.strftime('%A, %B %d, %Y')}\n"
+        f"Current time: {now.strftime('%I:%M:%S %p %Z')}\n"
+        f"ISO: {now.isoformat()}"
+    )
 
 
 # ── Tool registry ──────────────────────────────────────────────────
@@ -363,9 +515,12 @@ TOOL_DEFINITION = {_json.dumps(tool_def, indent=2)}
 BUILTIN_EXECUTORS = {
     "read_file": _read_file,
     "write_file": _write_file,
+    "delete_file": _delete_file,
     "list_directory": _list_directory,
     "run_command": _run_command,
     "web_search": _web_search,
+    "web_fetch": _web_fetch,
+    "get_current_time": _get_current_time,
     "create_tool": _create_tool,
 }
 
@@ -428,7 +583,7 @@ class ToolRegistry:
 
     def requires_approval(self, name: str) -> bool:
         """Check if a tool needs user approval before execution."""
-        dangerous = {"run_command", "write_file", "create_tool"}
+        dangerous = {"run_command", "write_file", "delete_file", "create_tool"}
         return name in dangerous
 
     def list_tools(self) -> list[dict]:
