@@ -241,7 +241,9 @@ def help_text():
 [bold]Chat Commands:[/]
   [cyan]/help[/]      Show this help
   [cyan]/quit[/]      Exit chat
-  [cyan]/disconnect[/] Remove API key
+  [cyan]/setup[/]     Guided identity setup
+  [cyan]/export[/]    Export agent to ZIP
+  [cyan]/debug[/]     Run self-diagnostic
   [cyan]/clear[/]     Clear conversation history
   [cyan]/model[/]     Show/set current model
   [cyan]/models[/]    List available models
@@ -251,6 +253,7 @@ def help_text():
   [cyan]/save[/]      Save conversation to file
   [cyan]/system[/]    Set custom system prompt
   [cyan]/skillsheet[/] Read the skillsheet docs
+  [cyan]/disconnect[/] Remove API key
 
 [bold]Keyboard Shortcuts:[/]
   [cyan]Ctrl+C[/]     Interrupt generation

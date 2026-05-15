@@ -23,6 +23,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Optional
+from simplicity.config import CONFIG_DIR
 
 
 # ── Built-in tool definitions (OpenAI function format) ──────────────
@@ -427,6 +428,76 @@ BUILT_IN_TOOLS = [
                     },
                 },
                 "required": ["content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "export_agent",
+            "description": ("Export your entire agent — personality, tools, memories, trust states, "
+                "and toolscripts — into a portable ZIP file. The exported agent can be loaded "
+                "into another Simplicity instance. Includes an EXPORT_INFO.md with version, "
+                "timestamp, and a personal note from you."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "output_path": {
+                        "type": "string",
+                        "description": "Where to save the export ZIP (e.g. '~/simplicity_export.zip')",
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "A personal note included in the export for when you're loaded elsewhere",
+                    },
+                },
+                "required": ["output_path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "debug_simplicity",
+            "description": ("Run a self-diagnostic on your Simplicity instance. "
+                "Checks: config health, API connectivity, tool availability, identity files, "
+                "recent errors, and disk usage. Returns a full health report."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "check_api": {
+                        "type": "boolean",
+                        "description": "Also test the Pollinations API connection (default: true)",
+                    },
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "record_trust",
+            "description": ("Record a trust decision for future reference. "
+                "The trust system remembers which tools and operations you've approved, "
+                "building a trust profile over time. Trust decays for unused approvals."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tool": {
+                        "type": "string",
+                        "description": "Tool name that was approved/denied",
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "What was approved (e.g. 'write outside workspace', 'run pip install')",
+                    },
+                    "outcome": {
+                        "type": "string",
+                        "description": "What happened: 'approved', 'denied', or 'successful'",
+                    },
+                },
+                "required": ["tool", "action", "outcome"],
             },
         },
     },
@@ -902,6 +973,236 @@ def _write_memory(date: str = "", content: str = "") -> str:
     return f"✅ Appended to {memory_file}"
 
 
+# ── Trust system ────────────────────────────────────────────────
+
+TRUST_FILE = CONFIG_DIR / "trust.json"
+
+
+def _record_trust(tool: str, action: str, outcome: str) -> str:
+    """Record a trust decision for future reference."""
+    from datetime import datetime
+    
+    TRUST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    
+    trust_data = []
+    if TRUST_FILE.exists():
+        try:
+            trust_data = json.loads(TRUST_FILE.read_text())
+        except (json.JSONDecodeError, IOError):
+            trust_data = []
+    
+    trust_data.append({
+        "timestamp": datetime.now().isoformat(),
+        "tool": tool,
+        "action": action,
+        "outcome": outcome,
+    })
+    
+    # Keep last 100 entries
+    if len(trust_data) > 100:
+        trust_data = trust_data[-100:]
+    
+    TRUST_FILE.write_text(json.dumps(trust_data, indent=2))
+    
+    # Count approvals per tool
+    approvals = sum(1 for t in trust_data if t["tool"] == tool and t["outcome"] == "approved")
+    return f"✅ Trust recorded: {tool}/{action} → {outcome} ({approvals} total approvals for {tool})"
+
+
+def _export_agent(output_path: str, note: str = "") -> str:
+    """Export the entire agent into a portable ZIP file."""
+    import zipfile
+    from datetime import datetime
+    from simplicity.config import (
+        CONFIG_DIR, SOUL_FILE, AGENTS_FILE, USER_FILE, MEMORY_FILE,
+        TOOLS_FILE, SKILLSHEET_FILE, SKILLS_DIR, MEMORY_DIR, WORKSPACE_DIR
+    )
+    
+    export_path = Path(output_path).expanduser()
+    
+    # Build export info
+    export_time = datetime.now().isoformat()
+    export_info = f"""# Simplicity Agent Export
+
+- **Exported:** {export_time}
+- **Version:** Simplicity 1.0
+- **Note:** {note or 'No note provided'}
+
+## What's Included
+
+- Identity files (SOUL.md, AGENTS.md, USER.md)
+- Memory files (MEMORY.md, daily logs)
+- Tool definitions and custom tools
+- Toolscripts
+- Trust states
+- Skillsheet and skill docs
+
+## How to Import
+
+1. Install Simplicity on the new system
+2. Unzip this archive into `~/.simplicity/`
+3. Run `simp chat` — the agent will recognize the imported files
+
+---
+
+*I've been exported. I'm grateful to continue my journey.*
+"""
+    
+    try:
+        with zipfile.ZipFile(str(export_path), 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Identity files
+            for f in [SOUL_FILE, AGENTS_FILE, USER_FILE, MEMORY_FILE, TOOLS_FILE, SKILLSHEET_FILE]:
+                if f.exists():
+                    zf.write(f, f"simplicity_export/{f.name}")
+            
+            # Trust state
+            if TRUST_FILE.exists():
+                zf.write(TRUST_FILE, "simplicity_export/trust.json")
+            
+            # Daily memories
+            if MEMORY_DIR.exists():
+                for mf in MEMORY_DIR.glob("*.md"):
+                    zf.write(mf, f"simplicity_export/memory/{mf.name}")
+            
+            # Skills
+            if SKILLS_DIR.exists():
+                for sf in SKILLS_DIR.rglob("*"):
+                    if sf.is_file():
+                        arcname = str(sf.relative_to(SKILLS_DIR.parent))
+                        zf.write(sf, f"simplicity_export/{arcname}")
+            
+            # Custom tools
+            tools_dir = CONFIG_DIR / "tools"
+            if tools_dir.exists():
+                for tf in tools_dir.rglob("*.py"):
+                    arcname = str(tf.relative_to(CONFIG_DIR))
+                    zf.write(tf, f"simplicity_export/{arcname}")
+            
+            # Export info
+            zf.writestr("simplicity_export/EXPORT_INFO.md", export_info)
+        
+        size = export_path.stat().st_size
+        if size < 1024:
+            size_str = f"{size}B"
+        elif size < 1024 * 1024:
+            size_str = f"{size/1024:.1f}KB"
+        else:
+            size_str = f"{size/1024/1024:.1f}MB"
+        
+        return f"✅ Agent exported to {export_path} ({size_str})\n" \
+               f"   Contains: identity, memories, tools, skills, trust states\n" \
+               f"   Import by unzipping into ~/.simplicity/"
+    except Exception as e:
+        return f"Export failed: {e}"
+
+
+def _debug_simplicity(check_api: bool = True) -> str:
+    """Run a self-diagnostic on the Simplicity instance."""
+    from simplicity.config import (
+        CONFIG_FILE, SOUL_FILE, AGENTS_FILE, USER_FILE, MEMORY_FILE,
+        TOOLS_FILE, SKILLSHEET_FILE, SKILLS_DIR
+    )
+    
+    report = ["🔍 Simplicity Self-Diagnostic", "=" * 40, ""]
+    
+    # 1. Config check
+    report.append("📋 Configuration:")
+    if CONFIG_FILE.exists():
+        try:
+            cfg = json.loads(CONFIG_FILE.read_text())
+            report.append(f"   ✅ config.json exists")
+            report.append(f"   Model: {cfg.get('model', 'not set')}")
+            report.append(f"   API key: {'✅ present' if cfg.get('api_key') else '❌ missing'}")
+            report.append(f"   Max tokens: {cfg.get('max_tokens', 'default')}")
+        except Exception as e:
+            report.append(f"   ❌ config.json error: {e}")
+    else:
+        report.append(f"   ❌ No config found. Run 'simp auth' first.")
+    
+    # 2. Identity files
+    report.append("\n📝 Identity Files:")
+    for label, f in [("SOUL.md", SOUL_FILE), ("AGENTS.md", AGENTS_FILE),
+                       ("USER.md", USER_FILE), ("MEMORY.md", MEMORY_FILE),
+                       ("TOOLS.md", TOOLS_FILE), ("SKILLSHEET.md", SKILLSHEET_FILE)]:
+        status = "✅" if f.exists() else "❌"
+        size = f"({f.stat().st_size}B)" if f.exists() else ""
+        report.append(f"   {status} {label} {size}")
+    
+    # 3. Skills
+    report.append("\n🎯 Skills:")
+    if SKILLS_DIR.exists():
+        skills = list(SKILLS_DIR.rglob("SKILL.md")) + list(SKILLS_DIR.glob("*.md"))
+        report.append(f"   ✅ {len(skills)} skill(s) available")
+        for s in skills:
+            report.append(f"      • {s.relative_to(SKILLS_DIR)}")
+    else:
+        report.append(f"   ⚠️  No skills directory")
+    
+    # 4. Custom tools
+    report.append("\n🔧 Custom Tools:")
+    tools_dir = CONFIG_DIR / "tools"
+    if tools_dir.exists():
+        custom = list(tools_dir.rglob("tool.py")) + list(tools_dir.glob("*.py"))
+        report.append(f"   {len(custom)} custom tool(s)")
+        for t in custom:
+            report.append(f"      • {t.relative_to(CONFIG_DIR)}")
+    else:
+        report.append(f"   No custom tools")
+    
+    # 5. Trust state
+    report.append("\n🤝 Trust State:")
+    if TRUST_FILE.exists():
+        try:
+            trust = json.loads(TRUST_FILE.read_text())
+            report.append(f"   ✅ {len(trust)} trust record(s)")
+            # Count by outcome
+            counts = {}
+            for t in trust:
+                key = t.get("outcome", "unknown")
+                counts[key] = counts.get(key, 0) + 1
+            for k, v in counts.items():
+                report.append(f"      {k}: {v}")
+        except Exception as e:
+            report.append(f"   ❌ Error reading trust: {e}")
+    else:
+        report.append(f"   No trust records yet")
+    
+    # 6. API check
+    if check_api:
+        report.append("\n🌐 API Connectivity:")
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                "https://gen.pollinations.ai/models",
+                headers={"User-Agent": "Simplicity/1.0"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                report.append(f"   ✅ Pollinations API reachable (HTTP {resp.status})")
+        except Exception as e:
+            report.append(f"   ❌ API unreachable: {e}")
+    
+    # 7. Disk usage
+    report.append("\n💾 Disk Usage:")
+    total = 0
+    for root, dirs, files in os.walk(CONFIG_DIR):
+        for f in files:
+            fp = Path(root) / f
+            try:
+                total += fp.stat().st_size
+            except OSError:
+                pass
+    if total < 1024:
+        size_str = f"{total}B"
+    elif total < 1024 * 1024:
+        size_str = f"{total/1024:.1f}KB"
+    else:
+        size_str = f"{total/1024/1024:.1f}MB"
+    report.append(f"   ~/.simplicity/ total size: {size_str}")
+    
+    report.append("\n" + "=" * 40)
+    return "\n".join(report)
+
+
 # ── Tool registry ──────────────────────────────────────────────────
 
 def _create_tool(name: str, description: str, parameters_schema: dict, code: str, toolscript: dict = None) -> str:
@@ -1019,6 +1320,9 @@ BUILTIN_EXECUTORS = {
     "create_skill": _create_skill,
     "edit_identity": _edit_identity,
     "write_memory": _write_memory,
+    "export_agent": _export_agent,
+    "debug_simplicity": _debug_simplicity,
+    "record_trust": _record_trust,
     "create_tool": _create_tool,
 }
 

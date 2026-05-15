@@ -141,6 +141,7 @@ class ChatSession:
     def run(self):
         """Start the interactive chat loop."""
         from simplicity.display import welcome
+        from simplicity.config import SOUL_FILE
 
         welcome()
         model_info(self.config.model)
@@ -149,6 +150,14 @@ class ChatSession:
         if not self.config.is_configured():
             warn_message("No API key configured. Run 'simplicity setup' first.")
             return
+
+        # Detect blank identity — offer conversational setup
+        if SOUL_FILE.exists():
+            soul = SOUL_FILE.read_text(encoding="utf-8")
+            if "I don't know who I am yet" in soul or "still becoming" in soul:
+                console.print("\n[cyan]👋 I'm new here! I haven't figured out who I am yet.[/]")
+                console.print("[dim]We can figure that out together through conversation.[/]")
+                console.print("[dim]Or type /setup to do a guided identity setup.[/]\n")
 
         # Main chat loop
         while True:
@@ -238,6 +247,18 @@ class ChatSession:
                 console.print(f"[dim]Use read_file to read it, update_skillsheet to edit it.[/]")
             else:
                 console.print("[dim]Skillsheet not found. It will be created on first chat start.[/]")
+        elif command == "/setup":
+            self._guided_setup()
+        elif command == "/debug":
+            console.print("[dim]Running self-diagnostic...[/]")
+            result = self.tools.execute("debug_simplicity", {"check_api": True})
+            console.print(result)
+        elif command == "/export":
+            if arg:
+                result = self.tools.execute("export_agent", {"output_path": arg, "note": ""})
+                console.print(result)
+            else:
+                console.print("[dim]Usage: /export <path.zip>[/]")
         else:
             warn_message(f"Unknown command: {command}")
 
@@ -401,6 +422,40 @@ class ChatSession:
                     "content": result,
                 }
             )
+
+    def _guided_setup(self):
+        """Guided identity setup — done conversationally."""
+        from simplicity.config import SOUL_FILE, USER_FILE, AGENTS_FILE
+        console.print()
+        console.print("[bold cyan]🌸 Guided Setup[/]")
+        console.print("[dim]I'll ask you a few questions to get to know you.[/]")
+        console.print("[dim]Your answers are saved to USER.md and help shape my personality.[/]")
+        console.print()
+        
+        # Ask basic questions
+        name = console.input("[bold]What should I call you?[/] ")
+        pronouns = console.input("[bold]Your pronouns?[/] (optional) ")
+        tz = console.input("[bold]Your timezone?[/] (e.g. America/Denver) ")
+        notes = console.input("[bold]Anything else I should know?[/] (optional) ")
+        
+        user_content = f"""# USER.md — About My Human
+
+- **Name:** {name}
+- **Pronouns:** {pronouns or '(not set)'}
+- **Timezone:** {tz or '(not set)'}
+- **Notes:** {notes or '(none yet)'}
+
+## Preferences
+
+*Add preferences as you discover them.*
+"""
+        
+        USER_FILE.write_text(user_content, encoding="utf-8")
+        success_message(f"User profile saved! Nice to meet you, {name}!")
+        
+        console.print()
+        console.print("[dim]As we talk more, I'll update my SOUL.md with my personality.[/]")
+        console.print("[dim]You can see my identity files with read_file, or edit them yourself.[/]")
 
     def _list_models(self):
         """List available models from within chat."""
