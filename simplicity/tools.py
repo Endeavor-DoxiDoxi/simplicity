@@ -506,6 +506,91 @@ BUILT_IN_TOOLS = [
 
 # ── Built-in tool implementations ──────────────────────────────────
 
+def _redact_secrets(content: str, filepath: str = "") -> str:
+    """Redact API keys, tokens, and secrets from file content.
+    Handles JSON by parsing and redacting named fields, falls back to
+    line-based regex for plain text."""
+    from pathlib import Path
+    fp = Path(filepath)
+
+    # Try JSON-aware redaction first
+    if fp.suffix in (".json",):
+        try:
+            import json
+            data = json.loads(content)
+            if isinstance(data, dict):
+                _redact_dict(data)
+                return json.dumps(data, indent=2)
+            elif isinstance(data, list):
+                for item in data:
+                    if isinstance(item, dict):
+                        _redact_dict(item)
+                return json.dumps(data, indent=2)
+        except (json.JSONDecodeError, Exception):
+            pass  # Fall through to line-based redaction
+
+    # Line-based redaction for non-JSON or unparseable files
+    import re
+    redacted_lines = []
+    secret_patterns = [
+        # Key=value patterns (env files, configs)
+        (r'(api_key\s*[=:]\s*)[^\s]+', r'\1[REDACTED]'),
+        (r'(apikey\s*[=:]\s*)[^\s]+', r'\1[REDACTED]'),
+        (r'(api["\s:=]+key["\s:=]+)[^\s"\',]+', r'\1[REDACTED]'),
+        (r'(token\s*[=:]\s*)[^\s]+', r'\1[REDACTED]'),
+        (r'(secret\s*[=:]\s*)[^\s]+', r'\1[REDACTED]'),
+        (r'(password\s*[=:]\s*)[^\s]+', r'\1[REDACTED]'),
+        (r'(DISCORD_TOKEN\s*=\s*)[^\s]+', r'\1[REDACTED]'),
+        (r'(MISTRAL_API_KEY\s*=\s*)[^\s]+', r'\1[REDACTED]'),
+        # JSON field patterns (if JSON parsing failed)
+        (r'"api_key"\s*:\s*"[^"]+"', '"api_key": "[REDACTED]"'),
+        (r'"token"\s*:\s*"[^"]+"', '"token": "[REDACTED]"'),
+        (r'"secret"\s*:\s*"[^"]+"', '"secret": "[REDACTED]"'),
+        (r'"password"\s*:\s*"[^"]+"', '"password": "[REDACTED]"'),
+    ]
+
+    for line in content.splitlines():
+        for pattern, replacement in secret_patterns:
+            line = re.sub(pattern, replacement, line, flags=re.IGNORECASE)
+        redacted_lines.append(line)
+
+    return "\n".join(redacted_lines)
+
+
+SENSITIVE_KEYS = {
+    "api_key", "apiKey", "apikey", "token", "access_token", "refresh_token",
+    "secret", "api_secret", "password", "passwd", "private_key", "pem",
+    "credential", "auth_token", "bearer_token", "session_key",
+    "discord_token", "openai_key", "mistral_key", "pollen_key",
+}
+
+
+def _redact_dict(d: dict) -> None:
+    """Recursively redact sensitive fields from a dict (mutates in place)."""
+    for key, value in list(d.items()):
+        key_lower = key.lower()
+        is_sensitive = key_lower in SENSITIVE_KEYS
+        # Also catch compound keys that end with known sensitive patterns
+        # but NOT compound words where the suffix is part of a real word
+        # e.g. "api_key" -> yes, "max_tokens" -> no
+        if not is_sensitive:
+            for suffix in ("api_key", "_token", "_secret"):
+                if key_lower.endswith(suffix) and key_lower not in ("max_tokens",):
+                    is_sensitive = True
+                    break
+        if is_sensitive:
+            if isinstance(value, str) and len(value) > 4:
+                d[key] = value[:4] + "..." + "[REDACTED]"
+            else:
+                d[key] = "[REDACTED]"
+        elif isinstance(value, dict):
+            _redact_dict(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    _redact_dict(item)
+
+
 def _read_file(path: str, offset: int = 1, limit: int = 200) -> str:
     p = Path(path).expanduser().resolve()
     if not p.exists():
@@ -513,7 +598,10 @@ def _read_file(path: str, offset: int = 1, limit: int = 200) -> str:
     if p.is_dir():
         return f"Error: Path is a directory: {path}"
     try:
-        lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+        raw = p.read_text(encoding="utf-8", errors="replace")
+        # Redact secrets before displaying
+        safe = _redact_secrets(raw, str(p))
+        lines = safe.splitlines()
         total = len(lines)
         start = max(0, offset - 1)
         end = start + limit
